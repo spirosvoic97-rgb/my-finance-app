@@ -120,15 +120,15 @@ total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"
 total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
 net_month = total_income - total_expenses
     
-    overall_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
-    overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
-    final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
+overall_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
+overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
+final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
-    col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
-    col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
-    col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
+col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
+col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
+col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
 
     st.markdown("---")
 
