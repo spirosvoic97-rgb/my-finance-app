@@ -4,6 +4,10 @@ import plotly.graph_objects as go
 from streamlit_gsheets import GSheetsConnection
 from io import BytesIO
 
+# Διόρθωση newlines στο private_key για το Streamlit Secrets
+if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+    if "private_key" in st.secrets["connections"]["gsheets"]:
+        st.secrets["connections"]["gsheets"]["private_key"] = st.secrets["connections"]["gsheets"]["private_key"].replace("\\n", "\n")
 st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
 
 # --- LOGIN AUTHENTICATION ---
