@@ -130,7 +130,7 @@ col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
 col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
 col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
 
-    st.markdown("---")
+st.markdown("---")
 
     # Ειδοποιήσεις Προϋπολογισμού (Alerts)
     if not filtered_df.empty:
