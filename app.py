@@ -93,15 +93,15 @@ if check_password():
     category = st.sidebar.selectbox("Κατηγορία", INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES)
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
-   if st.sidebar.button("Αποθήκευση"):
-    # 1. Προσθήκη στο Google Sheet
-    worksheet.append_row([str(date), description, entry_type, category, amount])
+    if st.sidebar.button("Αποθήκευση"):
+        # 1. Προσθήκη στο Google Sheet
+        worksheet.append_row([str(date), description, entry_type, category, amount])
     
-    # 2. Καθαρισμός cache για να ξαναδιαβάσει αμέσως το Sheet
-    st.cache_data.clear()
+        # 2. Καθαρισμός cache για να ξαναδιαβάσει αμέσως το Sheet
+        st.cache_data.clear()
     
-    st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
-    st.rerun()
+        st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
+        st.rerun()
 
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
