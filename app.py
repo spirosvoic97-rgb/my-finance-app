@@ -70,13 +70,13 @@ if check_password():
     category = st.sidebar.selectbox("Κατηγορία", INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES)
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
-    if st.sidebar.button("Αποθήκευση"):
+if st.sidebar.button("Αποθήκευση"):
     new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
     df_updated = pd.concat([df, new_data], ignore_index=True)
-    df_updated.to_csv("finance_data.csv", index=False)
-    st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
+    conn.update(data=df_updated)
+    st.sidebar.success("Η εγγραφή αποθηκεύτηκε στο Google Sheet!")
     st.rerun()
-
+    
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
     if selected_year != "Όλα":
