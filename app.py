@@ -98,7 +98,7 @@ if check_password():
 
     if st.sidebar.button("Αποθήκευση"):
         # 1. Προσθήκη στο Google Sheet
-        worksheet.append_row([str(date), description, entry_type, category, float(amount)], value_input_option="USER_ENTERED"
+        worksheet.append_row([str(date), description, entry_type, category, float(amount)], value_input_option="USER_ENTERED")
     
         # 2. Καθαρισμός cache για να ξαναδιαβάσει αμέσως το Sheet
         st.cache_data.clear()
