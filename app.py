@@ -71,11 +71,11 @@ if check_password():
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
     if st.sidebar.button("Αποθήκευση"):
-        new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
-        df_updated = pd.concat([df, new_data], ignore_index=True)
-        conn.update(data=df_updated)
-        st.sidebar.success("Η εγγραφή αποθηκεύτηκε στο Google Sheet!")
-        st.rerun()
+    new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
+    df_updated = pd.concat([df, new_data], ignore_index=True)
+    df_updated.to_csv("finance_data.csv", index=False)
+    st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
+    st.rerun()
 
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
