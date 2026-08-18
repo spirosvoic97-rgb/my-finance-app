@@ -46,7 +46,7 @@ if check_password():
     gc = gspread.authorize(credentials)
     
     # Σύνδεση με το Google Sheet
-    sh = gc.open_by_url(st.secrets["connections"]["gsheets"]["spreadsheet"])
+    sh = gc.open_by_key("1nf2bbF0ej--tQEEQAK6Eq378Sgr-Kgk2SbjoY541lxA")
     worksheet = sh.get_worksheet(0)
 
     # Διάβασμα δεδομένων
