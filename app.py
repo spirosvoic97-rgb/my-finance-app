@@ -55,7 +55,7 @@ if check_password():
 
     worksheet = sh.get_worksheet(0)
 
-# Διάβασμα δεδομένων
+    # Διάβασμα δεδομένων
     try:
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
@@ -63,7 +63,6 @@ if check_password():
             # Μετατροπή Ημερομηνίας & Ποσού
             df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
             df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0.0)
-            # Αφαίρεση τυχόν ατελών γραμμών
             df = df.dropna(subset=["Ημερομηνία"])
     except Exception:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
@@ -82,8 +81,9 @@ if check_password():
     # Sidebar: Φίλτρα & Καταχώρηση
     st.sidebar.header("🔍 Φίλτρα Προβολής")
     if not df.empty and "Ημερομηνία" in df.columns:
-        years = sorted(list(df["Ημερομηνία"].dt.year.unique()), reverse=True)
-        selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + years)
+        temp_years = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.year.dropna().astype(int).unique()
+        years = sorted(list(temp_years), reverse=True)
+        selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + list(years))
         selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     else:
         selected_year, selected_month = "Όλα", "Όλοι"
@@ -99,38 +99,38 @@ if check_password():
     if st.sidebar.button("Αποθήκευση"):
         # 1. Προσθήκη στο Google Sheet
         worksheet.append_row([str(date), description, entry_type, category, float(amount)], value_input_option="USER_ENTERED")
-    
-        # 2. Καθαρισμός cache για να ξαναδιαβάσει αμέσως το Sheet
+        
+        # 2. Καθαρισμός cache
         st.cache_data.clear()
-    
+        
         st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
         st.rerun()
 
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
-if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
-    temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
-    if selected_year != "Όλα":
-        filtered_df = filtered_df[temp_dates.dt.year == int(selected_year)]
+    if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
         temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
-    if selected_month != "Όλοι":
-        filtered_df = filtered_df[temp_dates.dt.month == int(selected_month)]
+        if selected_year != "Όλα":
+            filtered_df = filtered_df[temp_dates.dt.year == int(selected_year)]
+            temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
+        if selected_month != "Όλοι":
+            filtered_df = filtered_df[temp_dates.dt.month == int(selected_month)]
+            
+    total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
+    total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
+    net_month = total_income - total_expenses
         
-total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
-total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
-net_month = total_income - total_expenses
-    
-overall_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
-overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
-final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
+    overall_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
+    overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
+    final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
-col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
-col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
-col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
+    col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
+    col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
+    col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
 
-st.markdown("---")
+    st.markdown("---")
 
     # Ειδοποιήσεις Προϋπολογισμού (Alerts)
     if not filtered_df.empty:
@@ -162,11 +162,16 @@ st.markdown("---")
 
     # Table & Download
     st.subheader("📋 Ιστορικό Εγγραφών")
+    st.dataframe(filtered_df, use_container_width=True)
     
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Data')
     excel_data = output.getvalue()
-    
-    st.download_button(label="📥 Download Excel Report", data=excel_data, file_name="finance_report.xlsx", mime="application/vnd.ms-excel")
-    st.dataframe(filtered_df, use_container_width=True)
+
+    st.download_button(
+        label="📥 Download Excel Report",
+        data=excel_data,
+        file_name="finance_report.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
