@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import gspread
 from google.oauth2.service_account import Credentials
+import base64
 from io import BytesIO
 
 st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
@@ -33,13 +34,15 @@ def check_password():
 if check_password():
     STARTING_BALANCE = 672.776
 
-   # 1. Σύνδεση με Google Sheets μέσω gspread
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+  creds_dict = dict(st.secrets["connections"]["gsheets"])
 
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    gc = gspread.authorize(credentials)
+# Αποκωδικοποίηση του Base64 private key
+decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
+creds_dict["private_key"] = decoded_key
+
+scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+gc = gspread.authorize(credentials)
 
     # Σύνδεση με το Google Sheet
     sh = gc.open_by_url(st.secrets["connections"]["gsheets"]["spreadsheet"])
