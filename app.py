@@ -4,6 +4,8 @@ import plotly.graph_objects as go
 from streamlit_gsheets import GSheetsConnection
 from io import BytesIO
 
+st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
+
 # --- LOGIN AUTHENTICATION ---
 def check_password():
     if "authenticated" not in st.session_state:
@@ -42,7 +44,6 @@ if check_password():
     INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
     EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
 
-    # Προϋπολογισμοί / Όρια Εξόδων (Budgeting)
     BUDGET_LIMITS = {
         "Διασκέδαση / Έξοδος": 300.0,
         "Super Market": 200.0,
@@ -53,7 +54,7 @@ if check_password():
 
     # Sidebar: Φίλτρα & Καταχώρηση
     st.sidebar.header("🔍 Φίλτρα Προβολής")
-    if not df.empty:
+    if not df.empty and "Ημερομηνία" in df.columns:
         years = sorted(list(df["Ημερομηνία"].dt.year.unique()), reverse=True)
         selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + years)
         selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
@@ -68,24 +69,28 @@ if check_password():
     category = st.sidebar.selectbox("Κατηγορία", INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES)
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
-if st.sidebar.button("Αποθήκευση"):
-    new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
-    df_updated = pd.concat([df, new_data], ignore_index=True)
-    conn.update(data=df_updated)
-    st.sidebar.success("Η εγγραφή αποθηκεύτηκε στο Google Sheet!")
-    st.rerun()
-    
+    if st.sidebar.button("Αποθήκευση"):
+        new_row = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
+        updated_df = pd.concat([df, new_row], ignore_index=True)
+        conn.update(data=updated_df)
+        st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
+        st.rerun()
+
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
-    if selected_year != "Όλα":
-        filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.year == int(selected_year)]
-    if selected_month != "Όλοι":
-        filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.month == int(selected_month)]
+    if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
+        if selected_year != "Όλα":
+            filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.year == int(selected_year)]
+        if selected_month != "Όλοι":
+            filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.month == int(selected_month)]
 
     total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
     total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
     net_month = total_income - total_expenses
-    final_balance = STARTING_BALANCE + (df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() - df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum())
+    
+    overall_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
+    overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
+    final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
@@ -123,10 +128,9 @@ if st.sidebar.button("Αποθήκευση"):
         fig.update_layout(title="Ανάλυση Εσόδων - Εξόδων", showlegend=False, template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
 
-    # Export & Table
+    # Table & Download
     st.subheader("📋 Ιστορικό Εγγραφών")
     
-    # Excel Download Button
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Data')
