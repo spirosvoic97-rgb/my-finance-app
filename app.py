@@ -61,7 +61,7 @@ if check_password():
         df = pd.DataFrame(data)
         if not df.empty and "Ημερομηνία" in df.columns:
             # Μετατροπή Ημερομηνίας & Ποσού
-            df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce")
+            df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
             df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0.0)
             # Αφαίρεση τυχόν ατελών γραμμών
             df = df.dropna(subset=["Ημερομηνία"])
@@ -108,15 +108,17 @@ if check_password():
 
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
-    if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
-        if selected_year != "Όλα":
-            filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.year == int(selected_year)]
-        if selected_month != "Όλοι":
-            filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.month == int(selected_month)]
-
-    total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
-    total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
-    net_month = total_income - total_expenses
+if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
+    temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
+    if selected_year != "Όλα":
+        filtered_df = filtered_df[temp_dates.dt.year == int(selected_year)]
+        temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
+    if selected_month != "Όλοι":
+        filtered_df = filtered_df[temp_dates.dt.month == int(selected_month)]
+        
+total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
+total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
+net_month = total_income - total_expenses
     
     overall_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
     overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
