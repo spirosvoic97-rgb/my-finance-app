@@ -46,7 +46,13 @@ if check_password():
     gc = gspread.authorize(credentials)
     
     # Σύνδεση με το Google Sheet
-    sh = gc.open_by_key("1nf2bbF0ej--tQEEQAK6Eq378Sgr-Kgk2SbjoY541lxA")
+    try:
+    sh = gc.open("Finance Tracker Data")
+    except gspread.exceptions.SpreadsheetNotFound:
+    sh = gc.create("Finance Tracker Data")
+    worksheet = sh.get_worksheet(0)
+    worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
+
     worksheet = sh.get_worksheet(0)
 
     # Διάβασμα δεδομένων
