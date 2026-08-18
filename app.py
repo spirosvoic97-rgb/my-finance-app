@@ -60,8 +60,11 @@ if check_password():
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
         if not df.empty and "Ημερομηνία" in df.columns:
-            df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"])
-            df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0)
+            # Μετατροπή Ημερομηνίας & Ποσού
+            df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce")
+            df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0.0)
+            # Αφαίρεση τυχόν ατελών γραμμών
+            df = df.dropna(subset=["Ημερομηνία"])
     except Exception:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
 
@@ -95,7 +98,7 @@ if check_password():
 
     if st.sidebar.button("Αποθήκευση"):
         # 1. Προσθήκη στο Google Sheet
-        worksheet.append_row([str(date), description, entry_type, category, amount])
+        worksheet.append_row([str(date), description, entry_type, category, float(amount)], value_input_option="USER_ENTERED"
     
         # 2. Καθαρισμός cache για να ξαναδιαβάσει αμέσως το Sheet
         st.cache_data.clear()
