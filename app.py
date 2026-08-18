@@ -38,12 +38,13 @@ if check_password():
 
     # Αποκωδικοποίηση του Base64 private key
     decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
-    creds_dict["private_key"] = decoded_key
+    creds_dict["private_key"] = decoded_key.replace("\\n", "\n")
+    del creds_dict["private_key_base64"]
 
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
     gc = gspread.authorize(credentials)
-
+    
     # Σύνδεση με το Google Sheet
     sh = gc.open_by_url(st.secrets["connections"]["gsheets"]["spreadsheet"])
     worksheet = sh.get_worksheet(0)
