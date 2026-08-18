@@ -34,15 +34,15 @@ def check_password():
 if check_password():
     STARTING_BALANCE = 672.776
 
-  creds_dict = dict(st.secrets["connections"]["gsheets"])
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
 
-# Αποκωδικοποίηση του Base64 private key
-decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
-creds_dict["private_key"] = decoded_key
+    # Αποκωδικοποίηση του Base64 private key
+    decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
+    creds_dict["private_key"] = decoded_key
 
-scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-gc = gspread.authorize(credentials)
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    gc = gspread.authorize(credentials)
 
     # Σύνδεση με το Google Sheet
     sh = gc.open_by_url(st.secrets["connections"]["gsheets"]["spreadsheet"])
