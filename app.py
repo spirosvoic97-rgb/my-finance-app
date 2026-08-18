@@ -55,12 +55,13 @@ if check_password():
 
     worksheet = sh.get_worksheet(0)
 
-    # Διάβασμα δεδομένων
+# Διάβασμα δεδομένων
     try:
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
         if not df.empty and "Ημερομηνία" in df.columns:
             df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"])
+            df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0)
     except Exception:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
 
@@ -92,10 +93,15 @@ if check_password():
     category = st.sidebar.selectbox("Κατηγορία", INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES)
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
-    if st.sidebar.button("Αποθήκευση"):
-        worksheet.append_row([str(date), description, entry_type, category, amount])
-        st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
-        st.rerun()
+   if st.sidebar.button("Αποθήκευση"):
+    # 1. Προσθήκη στο Google Sheet
+    worksheet.append_row([str(date), description, entry_type, category, amount])
+    
+    # 2. Καθαρισμός cache για να ξαναδιαβάσει αμέσως το Sheet
+    st.cache_data.clear()
+    
+    st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
+    st.rerun()
 
     # Φιλτράρισμα Δεδομένων
     filtered_df = df.copy()
