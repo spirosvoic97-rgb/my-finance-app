@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import os
+from streamlit_gsheets import GSheetsConnection
+from io import BytesIO
 
-st.set_page_config(page_title="Personal Finance Tracker", page_icon="💰", layout="wide")
+st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
 
 # --- LOGIN AUTHENTICATION ---
 def check_password():
@@ -29,76 +30,84 @@ def check_password():
     return True
 
 if check_password():
-    DATA_FILE = "finance_data.csv"
     STARTING_BALANCE = 672.776
 
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-    else:
+    # 1. Σύνδεση με Google Sheets
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    try:
+        df = conn.read(ttl="0")
+        df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"])
+    except Exception:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
 
-    INCOME_CATEGORIES = [
-        "Άλλα Έσοδα / Έκτακτα", 
-        "Ιδιαίτερα", 
-        "Σχολή Χορού / Ωδείο ΑΜ", 
-        "Φροντιστήριο"
-    ]
+    INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
+    EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
 
-    EXPENSE_CATEGORIES = [
-        "Super Market", 
-        "Αποταμίευση", 
-        "Διασκέδαση / Έξοδος", 
-        "Έκτακτα / Δώρα / Ταξίδια", 
-        "Μετακινήσεις", 
-        "Πάγια / Λογαριασμοί", 
-        "Προσωπικά / Χόμπι", 
-        "Επαγγελματικά Έξοδα"
-    ]
+    # Προϋπολογισμοί / Όρια Εξόδων (Budgeting)
+    BUDGET_LIMITS = {
+        "Διασκέδαση / Έξοδος": 300.0,
+        "Super Market": 200.0,
+        "Προσωπικά / Χόμπι": 150.0
+    }
 
-    st.title("📊 Financial Dashboard & Waterfall Tracker")
+    st.title("📊 Financial Dashboard & Waterfall Tracker PRO")
 
-    # Φόρμα Καταχώρησης
+    # Sidebar: Φίλτρα & Καταχώρηση
+    st.sidebar.header("🔍 Φίλτρα Προβολής")
+    if not df.empty:
+        years = sorted(list(df["Ημερομηνία"].dt.year.unique()), reverse=True)
+        selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + years)
+        selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    else:
+        selected_year, selected_month = "Όλα", "Όλοι"
+
+    st.sidebar.markdown("---")
     st.sidebar.header("➕ Νέα Καταχώρηση")
     entry_type = st.sidebar.radio("Τύπος", ["Έσοδο", "Έξοδο"])
     date = st.sidebar.date_input("Ημερομηνία")
     description = st.sidebar.text_input("Περιγραφή")
-
-    if entry_type == "Έσοδο":
-        category = st.sidebar.selectbox("Κατηγορία Εσόδου", INCOME_CATEGORIES)
-    else:
-        category = st.sidebar.selectbox("Κατηγορία Εξόδου", EXPENSE_CATEGORIES)
-
+    category = st.sidebar.selectbox("Κατηγορία", INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES)
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
     if st.sidebar.button("Αποθήκευση"):
-        new_data = pd.DataFrame([{
-            "Ημερομηνία": date,
-            "Περιγραφή": description,
-            "Τύπος": entry_type,
-            "Κατηγορία": category,
-            "Ποσό": amount
-        }])
-        df = pd.concat([df, new_data], ignore_index=True)
-        df.to_csv(DATA_FILE, index=False)
-        st.sidebar.success("Η εγγραφή αποθηκεύτηκε!")
+        new_data = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
+        df_updated = pd.concat([df, new_data], ignore_index=True)
+        conn.update(data=df_updated)
+        st.sidebar.success("Η εγγραφή αποθηκεύτηκε στο Google Sheet!")
         st.rerun()
 
-    total_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not df.empty else 0.0
-    total_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
+    # Φιλτράρισμα Δεδομένων
+    filtered_df = df.copy()
+    if selected_year != "Όλα":
+        filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.year == int(selected_year)]
+    if selected_month != "Όλοι":
+        filtered_df = filtered_df[filtered_df["Ημερομηνία"].dt.month == int(selected_month)]
+
+    total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
+    total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
     net_month = total_income - total_expenses
-    final_balance = STARTING_BALANCE + net_month
+    final_balance = STARTING_BALANCE + (df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() - df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum())
 
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
-    col2.metric("Συνολικά Έσοδα", f"{total_income:.2f} €")
-    col3.metric("Συνολικά Έξοδα", f"{total_expenses:.2f} €")
-    col4.metric("Τελικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
+    col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
+    col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
+    col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
 
     st.markdown("---")
-    st.subheader("🌊 Waterfall Analysis")
 
-    if not df.empty:
-        expense_by_cat = df[df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
+    # Ειδοποιήσεις Προϋπολογισμού (Alerts)
+    if not filtered_df.empty:
+        exp_by_cat = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
+        for cat, limit in BUDGET_LIMITS.items():
+            if cat in exp_by_cat and exp_by_cat[cat] > limit:
+                st.warning(f"⚠️ **Υπέρβαση Ορίου:** Τα έξοδα στην κατηγορία **{cat}** έφτασαν τα **{exp_by_cat[cat]:.2f} €** (Όριο: {limit:.2f} €)!")
+
+    # Waterfall Chart
+    st.subheader("🌊 Waterfall Analysis")
+    if not filtered_df.empty:
+        expense_by_cat = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
         x_list = ["INCOME"] + list(expense_by_cat.index) + ["BALANCE"]
         y_list = [total_income] + list(-expense_by_cat.values) + [0]
         measure_list = ["relative"] + ["relative"] * len(expense_by_cat) + ["total"]
@@ -113,8 +122,17 @@ if check_password():
             increasing={"marker": {"color": "#636EFA"}},
             totals={"marker": {"color": "#7F7F7F"}}
         ))
-        fig.update_layout(title="Ανάλυση Εσόδων - Εξόδων & Καθαρού Αποτελέσματος", showlegend=False, template="plotly_dark")
+        fig.update_layout(title="Ανάλυση Εσόδων - Εξόδων", showlegend=False, template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
 
+    # Export & Table
     st.subheader("📋 Ιστορικό Εγγραφών")
-    st.dataframe(df, use_container_width=True)
+    
+    # Excel Download Button
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Data')
+    excel_data = output.getvalue()
+    
+    st.download_button(label="📥 Download Excel Report", data=excel_data, file_name="finance_report.xlsx", mime="application/vnd.ms-excel")
+    st.dataframe(filtered_df, use_container_width=True)
