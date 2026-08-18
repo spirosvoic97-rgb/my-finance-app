@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from google.oauth2.service_account import Credentials
 from io import BytesIO
 
 st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
@@ -32,12 +33,24 @@ def check_password():
 if check_password():
     STARTING_BALANCE = 672.776
 
-    # 1. Σύνδεση με Google Sheets
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    
+   # 1. Σύνδεση με Google Sheets μέσω gspread
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    gc = gspread.authorize(credentials)
+
+    # Σύνδεση με το Google Sheet
+    sh = gc.open_by_url(st.secrets["connections"]["gsheets"]["spreadsheet"])
+    worksheet = sh.get_worksheet(0)
+
+    # Διάβασμα δεδομένων
     try:
-        df = conn.read(ttl="0")
-        df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"])
+        data = worksheet.get_all_records()
+        df = pd.DataFrame(data)
+        if not df.empty and "Ημερομηνία" in df.columns:
+            df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"])
     except Exception:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
 
@@ -70,9 +83,7 @@ if check_password():
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
     if st.sidebar.button("Αποθήκευση"):
-        new_row = pd.DataFrame([{"Ημερομηνία": str(date), "Περιγραφή": description, "Τύπος": entry_type, "Κατηγορία": category, "Ποσό": amount}])
-        updated_df = pd.concat([df, new_row], ignore_index=True)
-        conn.update(data=updated_df)
+        worksheet.append_row([str(date), description, entry_type, category, amount])
         st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
         st.rerun()
 
