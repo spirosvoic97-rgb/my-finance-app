@@ -167,8 +167,15 @@ if check_password():
                 increasing={"marker": {"color": "#636EFA"}},
                 totals={"marker": {"color": "#7F7F7F"}}
             ))
-            fig_waterfall.update_layout(title="Ανάλυση Ταμειακών Ροών", showlegend=False, template="plotly_dark", height=400)
-            st.plotly_chart(fig_waterfall, use_container_width=True)
+            fig_waterfall.update_layout(
+                title="Ανάλυση Ταμειακών Ροών", 
+                showlegend=False, 
+                template="plotly_dark", 
+                height=400,
+                xaxis=dict(fixedrange=True),
+                yaxis=dict(fixedrange=True)
+            )
+            st.plotly_chart(fig_waterfall, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         else:
             st.info("Δεν υπάρχουν δεδομένα για την εμφάνιση του Waterfall Chart.")
 
@@ -191,11 +198,9 @@ if check_password():
         trend_df["Sort_Key"] = trend_df["dt"].dt.strftime("%Y-%m")
         trend_df["Μήνας"] = trend_df["dt"].dt.strftime("%b %Y")
         
-        # Groupby ανά μήνα και τύπο
         monthly_summary = trend_df.groupby(["Sort_Key", "Μήνας", "Τύπος"])["Ποσό"].sum().reset_index()
         
         if not monthly_summary.empty:
-            # Pivot για υπολογισμό του Καθαρού (Net = Έσοδα - Έξοδα)
             pivot_df = monthly_summary.pivot(index=["Sort_Key", "Μήνας"], columns="Τύπος", values="Ποσό").fillna(0.0).reset_index()
             if "Έσοδο" not in pivot_df.columns: pivot_df["Έσοδο"] = 0.0
             if "Έξοδο" not in pivot_df.columns: pivot_df["Έξοδο"] = 0.0
@@ -204,11 +209,8 @@ if check_password():
             pivot_df = pivot_df.sort_values("Sort_Key")
 
             fig_line = go.Figure()
-            # Γραμμή Εσόδων
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έσοδο"], mode='lines+markers', name='Έσοδο', line=dict(color='#00CC96', width=3)))
-            # Γραμμή Εξόδων
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έξοδο"], mode='lines+markers', name='Έξοδο', line=dict(color='#EF553B', width=3)))
-            # Γραμμή Καθαρού Υπολοίπου
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Καθαρό (Net)"], mode='lines+markers', name='Καθαρό (Net)', line=dict(color='#AB63FA', width=2, dash='dash')))
 
             fig_line.update_xaxes(type='category')
