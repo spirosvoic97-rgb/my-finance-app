@@ -6,6 +6,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 import base64
 from io import BytesIO
+import datetime
+import calendar
+import re
 
 st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
 
@@ -52,7 +55,7 @@ if check_password():
     except gspread.exceptions.SpreadsheetNotFound:
         sh = gc.create("Finance Tracker Data")
         worksheet = sh.get_worksheet(0)
-        worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
+        worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο"])
 
     worksheet = sh.get_worksheet(0)
 
@@ -65,7 +68,7 @@ if check_password():
             df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0.0)
             df = df.dropna(subset=["Ημερομηνία"])
     except Exception:
-        df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"])
+        df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο"])
 
     INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
     EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
@@ -76,24 +79,19 @@ if check_password():
     st.sidebar.header("🎨 Εμφάνιση")
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
     
-    # Ρυθμίσεις χρωμάτων για τα γραφήματα Plotly
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
         chart_bg = "#FFFFFF"
         chart_font_color = "#111111"
         chart_grid_color = "#D1D5DB"
         
-        # Dynamic CSS Injection για 100% Light Mode
         st.markdown(
             """
             <style>
-            /* Φόντο σελίδας, Sidebar, Header & App Toolbar */
             .stApp, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stAppToolbar"], header {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
             }
-            
-            /* Διόρθωση Toolbar Icons (Share, Star, Pencil, Github) με Invert Filter */
             [data-testid="stHeader"] img, [data-testid="stAppToolbar"] img, 
             [data-testid="stHeader"] svg, [data-testid="stAppToolbar"] svg,
             header svg, button[kind="header"] svg {
@@ -103,13 +101,9 @@ if check_password():
                 color: #111111 !important;
                 background-color: #FFFFFF !important;
             }
-            
-            /* Κείμενα, Headers & Metrics */
             h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
                 color: #111111 !important;
             }
-            
-            /* Selectboxes & Down Arrows */
             input, select, textarea, div[role="combobox"], [data-baseweb="select"] {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
@@ -123,8 +117,6 @@ if check_password():
             [data-baseweb="select"] svg {
                 fill: #111111 !important;
             }
-            
-            /* Number Input Κουμπιά (+ και -) */
             [data-testid="stNumberInput"] button {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
@@ -134,8 +126,6 @@ if check_password():
                 color: #111111 !important;
                 fill: #111111 !important;
             }
-            
-            /* Expander ("Ρύθμιση Ορίων ανά Κατηγορία") */
             [data-testid="stExpander"] {
                 background-color: #FFFFFF !important;
                 border: 1px solid #111111 !important;
@@ -149,8 +139,6 @@ if check_password():
                 color: #111111 !important;
                 fill: #111111 !important;
             }
-            
-            /* Όλα τα Κουμπιά (Αποθήκευση, Popovers, Download Button) */
             .stButton > button, button[aria-haspopup="dialog"], .stDownloadButton > button {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
@@ -162,11 +150,7 @@ if check_password():
                 border: 1px solid #000000 !important;
                 color: #000000 !important;
             }
-            
-            /* Διαχωριστικές γραμμές */
-            hr {
-                border-color: #E0E0E0 !important;
-            }
+            hr { border-color: #E0E0E0 !important; }
             </style>
             """,
             unsafe_allow_html=True
@@ -177,6 +161,41 @@ if check_password():
         chart_font_color = "#FFFFFF"
         chart_grid_color = "#333333"
 
+    # --- SMART QUICK LOG (SMART PARSER) ---
+    st.sidebar.markdown("---")
+    st.sidebar.header("⚡ Smart Quick Log")
+    st.sidebar.caption("Γράψε π.χ. *15 σουβλάκια* ή *500 ιδιαίτερα*")
+    quick_input = st.sidebar.text_input("Γρήγορη Γραπτή Καταχώρηση", key="quick_input_key")
+
+    if st.sidebar.button("⚡ Γρήγορη Προσθήκη"):
+        if quick_input:
+            match = re.search(r"(\d+(?:\.\d+)?)", quick_input)
+            if match:
+                extracted_amount = float(match.group(1))
+                extracted_desc = quick_input.replace(match.group(1), "").strip()
+                
+                # Έξυπνη μαντεψιά Κατηγορίας & Τύπου
+                desc_lower = extracted_desc.lower()
+                auto_type = "Έξοδο"
+                auto_cat = "Διασκέδαση / Έξοδος"
+
+                if any(w in desc_lower for w in ["ιδιαίτερα", "μισθός", "φροντιστήριο", "ωδείο", "έσοδο", "πληρωμή"]):
+                    auto_type = "Έσοδο"
+                    if "ιδιαίτερα" in desc_lower: auto_cat = "Ιδιαίτερα"
+                    elif "φροντιστήριο" in desc_lower: auto_cat = "Φροντιστήριο"
+                    else: auto_cat = "Άλλα Έσοδα / Έκτακτα"
+                else:
+                    if any(w in desc_lower for w in ["super", "market", "φαγητό", "μάρκετ", "τόστ", "σουβλάκια"]): auto_cat = "Super Market"
+                    elif any(w in desc_lower for w in ["βενζίνη", "κάρτα", "διόδια", "bus"]): auto_cat = "Μετακινήσεις"
+                    elif any(w in desc_lower for w in ["δεη", "νερό", "ενοίκιο", "cosmote", "ιντερνετ"]): auto_cat = "Πάγια / Λογαριασμοί"
+
+                today_str = str(datetime.date.today())
+                worksheet.append_row([today_str, extracted_desc if extracted_desc else "Γρήγορη Καταχώρηση", auto_type, auto_cat, extracted_amount, "Όχι"], value_input_option="USER_ENTERED")
+                st.cache_data.clear()
+                st.sidebar.success(f"Προστέθηκε: {extracted_desc} - {extracted_amount}€ ({auto_cat})")
+                st.rerun()
+
+    # --- SIDEBAR: Φίλτρα ---
     st.sidebar.markdown("---")
     st.sidebar.header("🔍 Φίλτρα Προβολής")
     if not df.empty and "Ημερομηνία" in df.columns:
@@ -201,6 +220,7 @@ if check_password():
         "Προσωπικά / Χόμπι": limit_hobby
     }
 
+    # --- SIDEBAR: Χειροκίνητη Καταχώρηση ---
     st.sidebar.markdown("---")
     st.sidebar.header("➕ Νέα Καταχώρηση")
     entry_type = st.sidebar.radio("Τύπος", ["Έσοδο", "Έξοδο"])
@@ -208,9 +228,11 @@ if check_password():
     description = st.sidebar.text_input("Περιγραφή")
     category = st.sidebar.selectbox("Κατηγορία", INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES)
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
+    is_recurring = st.sidebar.checkbox("🔄 Επαναλαμβανόμενο (Μηνιαίο)")
 
     if st.sidebar.button("Αποθήκευση"):
-        worksheet.append_row([str(date), description, entry_type, category, float(amount)], value_input_option="USER_ENTERED")
+        rec_val = "Ναι" if is_recurring else "Όχι"
+        worksheet.append_row([str(date), description, entry_type, category, float(amount), rec_val], value_input_option="USER_ENTERED")
         st.cache_data.clear()
         st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
         st.rerun()
@@ -235,12 +257,19 @@ if check_password():
     overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
     final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
+    # --- SAFE TO SPEND CALCULATOR ---
+    now = datetime.date.today()
+    days_in_month = calendar.monthrange(now.year, now.month)[1]
+    days_remaining = (days_in_month - now.day) + 1
+    safe_to_spend_daily = (final_balance / days_remaining) if final_balance > 0 and days_remaining > 0 else 0.0
+
     # --- DASHBOARD METRICS ---
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+    col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1.2])
     col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
     col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
     col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
     col4.metric("Συνολικό Υπόλοιπο", f"{final_balance:.2f} €")
+    col5.metric("💡 Safe-to-Spend / Ημέρα", f"{safe_to_spend_daily:.2f} €", help=f"Ασφαλές ημερήσιο όριο εξόδων για τις {days_remaining} ημέρες που απομένουν στο μήνα.")
 
     st.markdown("---")
 
@@ -281,20 +310,8 @@ if check_password():
                 plot_bgcolor=chart_bg,
                 font=dict(color=chart_font_color),
                 height=400,
-                xaxis=dict(
-                    fixedrange=True, 
-                    color=chart_font_color, 
-                    tickfont=dict(color=chart_font_color, size=12),
-                    title=dict(font=dict(color=chart_font_color)),
-                    gridcolor=chart_grid_color
-                ),
-                yaxis=dict(
-                    fixedrange=True, 
-                    color=chart_font_color, 
-                    tickfont=dict(color=chart_font_color, size=12),
-                    title=dict(font=dict(color=chart_font_color)),
-                    gridcolor=chart_grid_color
-                )
+                xaxis=dict(fixedrange=True, color=chart_font_color, tickfont=dict(color=chart_font_color, size=12), gridcolor=chart_grid_color),
+                yaxis=dict(fixedrange=True, color=chart_font_color, tickfont=dict(color=chart_font_color, size=12), gridcolor=chart_grid_color)
             )
             st.plotly_chart(fig_waterfall, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         else:
@@ -343,29 +360,9 @@ if check_password():
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έξοδο"], mode='lines+markers', name='Έξοδο', line=dict(color='#EF553B', width=3)))
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Καθαρό (Net)"], mode='lines+markers', name='Καθαρό (Net)', line=dict(color='#AB63FA', width=2, dash='dash')))
 
-            fig_line.update_xaxes(
-                type='category', 
-                fixedrange=True, 
-                color=chart_font_color, 
-                tickfont=dict(color=chart_font_color, size=12),
-                title=dict(text="Μήνας", font=dict(color=chart_font_color)),
-                gridcolor=chart_grid_color
-            )
-            fig_line.update_yaxes(
-                fixedrange=True, 
-                color=chart_font_color, 
-                tickfont=dict(color=chart_font_color, size=12),
-                title=dict(text="Ποσό (€)", font=dict(color=chart_font_color)),
-                gridcolor=chart_grid_color
-            )
-            fig_line.update_layout(
-                height=380, 
-                template=plotly_template, 
-                paper_bgcolor=chart_bg,
-                plot_bgcolor=chart_bg,
-                font=dict(color=chart_font_color),
-                legend=dict(font=dict(color=chart_font_color))
-            )
+            fig_line.update_xaxes(type='category', fixedrange=True, color=chart_font_color, tickfont=dict(color=chart_font_color, size=12), title=dict(text="Μήνας", font=dict(color=chart_font_color)), gridcolor=chart_grid_color)
+            fig_line.update_yaxes(fixedrange=True, color=chart_font_color, tickfont=dict(color=chart_font_color, size=12), title=dict(text="Ποσό (€)", font=dict(color=chart_font_color)), gridcolor=chart_grid_color)
+            fig_line.update_layout(height=380, template=plotly_template, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), legend=dict(font=dict(color=chart_font_color)))
             st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
     st.markdown("---")
 
@@ -406,7 +403,8 @@ if check_password():
 
                     if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
                         row_to_edit = int(idx) + 2
-                        worksheet.update(f"A{row_to_edit}:E{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount]])
+                        rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
+                        worksheet.update(f"A{row_to_edit}:F{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state]])
                         st.cache_data.clear()
                         st.success("Η εγγραφή ενημερώθηκε!")
                         st.rerun()
