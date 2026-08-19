@@ -21,9 +21,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. PWA HEAD INJECTION (Force New Icon & Title)
-st.markdown(
-    f"""
+# 2. PWA HEAD INJECTION (Διορθωμένο χωρίς να εμφανίζεται ο κώδικας στην οθόνη)
+pwa_html = f"""
     <head>
         <link rel="manifest" href="./manifest.json">
         <meta name="theme-color" content="#11151C">
@@ -33,22 +32,12 @@ st.markdown(
         <meta name="apple-mobile-web-app-title" content="FinancePRO">
         <meta name="application-name" content="FinancePRO">
         
-        <!-- Icons -->
         <link rel="apple-touch-icon" href="{ICON_URL}">
         <link rel="icon" type="image/png" href="{ICON_URL}">
         <link rel="shortcut icon" href="{ICON_URL}">
-        
-        <script>
-            if ('serviceWorker' in navigator) {{
-                window.addEventListener('load', function() {{
-                    navigator.serviceWorker.register('./service-worker.js');
-                }});
-            }}
-        </script>
     </head>
-    """,
-    unsafe_allow_html=True
-)
+"""
+st.markdown(pwa_html, unsafe_allow_html=True)
 
 # --- HELPER FUNCTIONS ---
 def make_hash(password):
