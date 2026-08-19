@@ -85,8 +85,9 @@ if check_password():
         years = sorted(list(temp_years), reverse=True)
         selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + list(years))
         selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        search_query = st.sidebar.text_input("🔎 Αναζήτηση Περιγραφής", "")
     else:
-        selected_year, selected_month = "Όλα", "Όλοι"
+        selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
 
     st.sidebar.markdown("---")
     st.sidebar.header("➕ Νέα Καταχώρηση")
@@ -111,6 +112,8 @@ if check_password():
             temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
         if selected_month != "Όλοι":
             filtered_df = filtered_df[temp_dates.dt.month == int(selected_month)]
+        if search_query:
+            filtered_df = filtered_df[filtered_df["Περιγραφή"].astype(str).str.contains(search_query, case=False, na=False)]
             
     total_income = filtered_df[filtered_df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
     total_expenses = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not filtered_df.empty else 0.0
@@ -172,6 +175,21 @@ if check_password():
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
 
+    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ ---
+    st.subheader("📈 Μηνιαία Τάση Εσόδων - Εξόδων")
+    if not df.empty:
+        trend_df = df.copy()
+        trend_df["Μήνας-Έτος"] = pd.to_datetime(trend_df["Ημερομηνία"]).dt.to_period("M").astype(str)
+        monthly_summary = trend_df.groupby(["Μήνας-Έτος", "Τύπος"])["Ποσό"].sum().reset_index()
+        
+        if not monthly_summary.empty:
+            fig_line = px.line(monthly_summary, x="Μήνας-Έτος", y="Ποσό", color="Τύπος",
+                               markers=True, template="plotly_dark",
+                               color_discrete_map={"Έσοδο": "#00CC96", "Έξοδο": "#EF553B"})
+            fig_line.update_layout(height=350, xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
+            st.plotly_chart(fig_line, use_container_width=True)
+    st.markdown("---")
+
     # --- TABLE, EDIT, DELETE & DOWNLOAD ---
     st.subheader("📋 Ιστορικό Εγγραφών")
 
@@ -195,7 +213,7 @@ if check_password():
             rcol4.write(row["Κατηγορία"])
             rcol5.write(f"{row['Ποσό']:.2f} €")
             
-            # Δύο κουμπιά στην ίδια στήλη: Edit (✏️) και Delete (🗑️)
+            # Δύο κουμπιά στην ίδια στήλη: Edit (✏️) και Delete (🗑️ με επιβεβαίωση)
             btn_col1, btn_col2 = rcol6.columns(2)
             
             # Popover παράθυρο για Επεξεργασία
@@ -213,20 +231,22 @@ if check_password():
 
                     if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
                         row_to_edit = int(idx) + 2
-                        # Ενημέρωση όλων των κελιών της συγκεκριμένης γραμμής στο Google Sheet
                         worksheet.update(f"A{row_to_edit}:E{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount]])
                         st.cache_data.clear()
                         st.success("Η εγγραφή ενημερώθηκε!")
                         st.rerun()
 
-            # Κουμπί Διαγραφής
+            # Popover παράθυρο για Επιβεβαίωση Διαγραφής
             with btn_col2:
-                if st.button("🗑️", key=f"del_{idx}"):
-                    row_to_delete = int(idx) + 2
-                    worksheet.delete_rows(row_to_delete)
-                    st.cache_data.clear()
-                    st.success("Η εγγραφή διαγράφηκε!")
-                    st.rerun()
+                with st.popover("🗑️"):
+                    st.write("⚠️ **Επιβεβαίωση Διαγραφής;**")
+                    st.caption(f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {row['Ποσό']}€")
+                    if st.button("Ναι, Διαγραφή!", key=f"confirm_del_{idx}", type="primary"):
+                        row_to_delete = int(idx) + 2
+                        worksheet.delete_rows(row_to_delete)
+                        st.cache_data.clear()
+                        st.success("Η εγγραφή διαγράφηκε!")
+                        st.rerun()
     else:
         st.info("Δεν υπάρχουν εγγραφές για προβολή.")
 
