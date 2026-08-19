@@ -76,14 +76,14 @@ if check_password():
     st.sidebar.header("🎨 Εμφάνιση")
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
     
-    # Ρυθμίσεις χρωμάτων για τα γραφήματα Plotly
+    # Ρυθμίσεις χρωμάτων για τα γραφήματα Plotly & CSS
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
         chart_bg = "#FFFFFF"
         chart_font_color = "#111111"
         chart_grid_color = "#D1D5DB"
         
-        # Dynamic CSS Injection για 100% Light Mode (Σελίδα, Header, Toolbar Icons, Inputs, Buttons)
+        # Dynamic CSS Injection για 100% Light Mode
         st.markdown(
             """
             <style>
@@ -93,15 +93,11 @@ if check_password():
                 color: #111111 !important;
             }
             
-            /* Εικονίδια & Κουμπιά στο πάνω δεξιά Header (Share, Star, Pencil, Github) */
-            [data-testid="stHeader"] svg, [data-testid="stAppToolbar"] svg, header svg {
+            /* Εικονίδια & Κείμενα στο πάνω δεξιά Toolbar (Share, Star, Pencil, GitHub) */
+            [data-testid="stHeader"] *, [data-testid="stAppToolbar"] *, header * {
+                color: #111111 !important;
                 fill: #111111 !important;
-                color: #111111 !important;
-            }
-            [data-testid="stHeader"] button, [data-testid="stAppToolbar"] button {
-                color: #111111 !important;
-                background-color: #FFFFFF !important;
-                border-color: #CCCCCC !important;
+                stroke: #111111 !important;
             }
             
             /* Κείμενα, Headers & Metrics */
@@ -118,15 +114,17 @@ if check_password():
                 fill: #111111 !important;
             }
             
-            /* Κουμπιά Popovers (✏️ & 🗑️), Download Button & Status Widgets */
-            button[aria-haspopup="dialog"], .stDownloadButton > button, [data-testid="stStatusWidget"] {
+            /* Όλα τα Κουμπιά (Αποθήκευση, Popovers, Download Button) */
+            .stButton > button, button[aria-haspopup="dialog"], .stDownloadButton > button {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
                 border: 1px solid #111111 !important;
+                font-weight: bold !important;
             }
-            button[aria-haspopup="dialog"]:hover, .stDownloadButton > button:hover {
+            .stButton > button:hover, button[aria-haspopup="dialog"]:hover, .stDownloadButton > button:hover {
                 background-color: #F0F2F6 !important;
                 border: 1px solid #000000 !important;
+                color: #000000 !important;
             }
             
             /* Διαχωριστικές γραμμές */
