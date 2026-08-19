@@ -72,7 +72,12 @@ if check_password():
 
     st.title("📊 Financial Dashboard & Waterfall Tracker PRO")
 
-    # --- SIDEBAR: Φίλτρα & Καταχώρηση ---
+    # --- SIDEBAR: Φίλτρα & Theme ---
+    st.sidebar.header("🎨 Εμφάνιση")
+    theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
+    plotly_theme = "plotly_dark" if theme == "Dark Mode 🌙" else "plotly_white"
+
+    st.sidebar.markdown("---")
     st.sidebar.header("🔍 Φίλτρα Προβολής")
     if not df.empty and "Ημερομηνία" in df.columns:
         temp_years = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.year.dropna().astype(int).unique()
@@ -84,7 +89,7 @@ if check_password():
         selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
 
     st.sidebar.markdown("---")
-    st.sidebar.header("⚙️ Όρια Προϋπολογισμού (Budget Limits)")
+    st.sidebar.header("⚙️ Όρια Προϋπολογισμού")
     with st.sidebar.expander("Ρύθμιση Ορίων ανά Κατηγορία"):
         limit_fun = st.number_input("Διασκέδαση / Έξοδος (€)", value=300.0, step=50.0)
         limit_sm = st.number_input("Super Market (€)", value=200.0, step=50.0)
@@ -170,7 +175,7 @@ if check_password():
             fig_waterfall.update_layout(
                 title="Ανάλυση Ταμειακών Ροών", 
                 showlegend=False, 
-                template="plotly_dark", 
+                template=plotly_theme, 
                 height=400,
                 xaxis=dict(fixedrange=True),
                 yaxis=dict(fixedrange=True)
@@ -183,13 +188,13 @@ if check_password():
         st.subheader("🍕 Κατανομή Εξόδων")
         if not filtered_df.empty and total_expenses > 0:
             exp_df = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]
-            fig_pie = px.pie(exp_df, values="Ποσό", names="Κατηγορία", hole=0.4, template="plotly_dark")
-            fig_pie.update_layout(height=400)
-            st.plotly_chart(fig_pie, use_container_width=True)
+            fig_pie = px.pie(exp_df, values="Ποσό", names="Κατηγορία", hole=0.4, template=plotly_theme)
+            fig_pie.update_layout(height=400, xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True))
+            st.plotly_chart(fig_pie, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
 
-    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ (ΜΕ NET LINE & ΜΟΡΦΗ MMM YYYY) ---
+    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ (ΚΛΕΙΔΩΜΕΝΟ ZOOM) ---
     st.subheader("📈 Μηνιαία Τάση Εσόδων, Εξόδων & Καθαρού Υπολοίπου")
     if not df.empty:
         trend_df = df.copy()
@@ -213,16 +218,16 @@ if check_password():
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έξοδο"], mode='lines+markers', name='Έξοδο', line=dict(color='#EF553B', width=3)))
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Καθαρό (Net)"], mode='lines+markers', name='Καθαρό (Net)', line=dict(color='#AB63FA', width=2, dash='dash')))
 
-            fig_line.update_xaxes(type='category')
-            fig_line.update_layout(height=380, template="plotly_dark", xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
-            st.plotly_chart(fig_line, use_container_width=True)
+            fig_line.update_xaxes(type='category', fixedrange=True)
+            fig_line.update_yaxes(fixedrange=True)
+            fig_line.update_layout(height=380, template=plotly_theme, xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
+            st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
     st.markdown("---")
 
     # --- TABLE, EDIT, DELETE & DOWNLOAD ---
     st.subheader("📋 Ιστορικό Εγγραφών")
 
     if not filtered_df.empty:
-        # Επικεφαλίδες Πίνακα
         hcol1, hcol2, hcol3, hcol4, hcol5, hcol6 = st.columns([1.5, 2.2, 1.0, 2.0, 1.2, 1.2])
         hcol1.markdown("**Ημερομηνία**")
         hcol2.markdown("**Περιγραφή**")
@@ -232,7 +237,6 @@ if check_password():
         hcol6.markdown("**Ενέργειες**")
         st.markdown("---")
 
-        # Εμφάνιση κάθε εγγραφής
         for idx, row in filtered_df.iterrows():
             rcol1, rcol2, rcol3, rcol4, rcol5, rcol6 = st.columns([1.5, 2.2, 1.0, 2.0, 1.2, 1.2])
             rcol1.write(str(row["Ημερομηνία"]))
@@ -241,10 +245,8 @@ if check_password():
             rcol4.write(row["Κατηγορία"])
             rcol5.write(f"{row['Ποσό']:.2f} €")
             
-            # Δύο κουμπιά στην ίδια στήλη: Edit (✏️) και Delete (🗑️)
             btn_col1, btn_col2 = rcol6.columns(2)
             
-            # Popover παράθυρο για Επεξεργασία
             with btn_col1:
                 with st.popover("✏️"):
                     st.write(f"**Επεξεργασία Εγγραφής (Γραμμή {int(idx)+2})**")
@@ -264,7 +266,6 @@ if check_password():
                         st.success("Η εγγραφή ενημερώθηκε!")
                         st.rerun()
 
-            # Popover παράθυρο για Επιβεβαίωση Διαγραφής
             with btn_col2:
                 with st.popover("🗑️"):
                     st.write("⚠️ **Επιβεβαίωση Διαγραφής;**")
