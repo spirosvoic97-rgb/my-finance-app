@@ -81,24 +81,35 @@ if check_password():
         plotly_template = "plotly_white"
         chart_bg = "#FFFFFF"
         chart_font_color = "#111111"
-        chart_grid_color = "#E5E7EB"
+        chart_grid_color = "#D1D5DB"
         
-        # Dynamic CSS Injection για 100% Light Mode (Σελίδα, Header, Selectboxes, Buttons & Popovers)
+        # Dynamic CSS Injection για 100% Light Mode (Σελίδα, Header, Toolbar Icons, Inputs, Buttons)
         st.markdown(
             """
             <style>
-            /* Φόντο σελίδας, Sidebar, Header & FooterToolbar */
+            /* Φόντο σελίδας, Sidebar, Header & App Toolbar */
             .stApp, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stAppToolbar"], header {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
             }
             
+            /* Εικονίδια & Κουμπιά στο πάνω δεξιά Header (Share, Star, Pencil, Github) */
+            [data-testid="stHeader"] svg, [data-testid="stAppToolbar"] svg, header svg {
+                fill: #111111 !important;
+                color: #111111 !important;
+            }
+            [data-testid="stHeader"] button, [data-testid="stAppToolbar"] button {
+                color: #111111 !important;
+                background-color: #FFFFFF !important;
+                border-color: #CCCCCC !important;
+            }
+            
             /* Κείμενα, Headers & Metrics */
-            h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stHeader"] * {
+            h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
                 color: #111111 !important;
             }
             
-            /* Inputs, Selectboxes & Τα βέλη τους (Down Arrows) */
+            /* Inputs, Selectboxes & Τα βέλη τους */
             input, select, textarea, div[role="combobox"], [data-baseweb="select"] * {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
@@ -107,8 +118,8 @@ if check_password():
                 fill: #111111 !important;
             }
             
-            /* Κουμπιά Popovers (✏️ & 🗑️), Download Button & Manage App */
-            button[aria-haspopup="dialog"], .stDownloadButton > button, [data-testid="stStatusWidget"], button[kind="header"] {
+            /* Κουμπιά Popovers (✏️ & 🗑️), Download Button & Status Widgets */
+            button[aria-haspopup="dialog"], .stDownloadButton > button, [data-testid="stStatusWidget"] {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
                 border: 1px solid #111111 !important;
@@ -221,7 +232,7 @@ if check_password():
                 name="Cashflow", orientation="v",
                 measure=measure_list, x=x_list, textposition="outside",
                 text=[f"{val:.2f}" if val != 0 else f"{net_month:.2f}" for val in y_list[:-1]] + [f"{net_month:.2f}"],
-                textfont=dict(color=chart_font_color),
+                textfont=dict(color=chart_font_color, size=12),
                 y=y_list,
                 connector={"line": {"color": "rgb(63, 63, 63)"}},
                 decreasing={"marker": {"color": "#EF553B"}},
@@ -236,8 +247,20 @@ if check_password():
                 plot_bgcolor=chart_bg,
                 font=dict(color=chart_font_color),
                 height=400,
-                xaxis=dict(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color),
-                yaxis=dict(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
+                xaxis=dict(
+                    fixedrange=True, 
+                    color=chart_font_color, 
+                    tickfont=dict(color=chart_font_color, size=12),
+                    title=dict(font=dict(color=chart_font_color)),
+                    gridcolor=chart_grid_color
+                ),
+                yaxis=dict(
+                    fixedrange=True, 
+                    color=chart_font_color, 
+                    tickfont=dict(color=chart_font_color, size=12),
+                    title=dict(font=dict(color=chart_font_color)),
+                    gridcolor=chart_grid_color
+                )
             )
             st.plotly_chart(fig_waterfall, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         else:
@@ -257,7 +280,7 @@ if check_password():
                 xaxis=dict(fixedrange=True), 
                 yaxis=dict(fixedrange=True)
             )
-            fig_pie.update_traces(textfont_color=chart_font_color)
+            fig_pie.update_traces(textfont=dict(color=chart_font_color))
             st.plotly_chart(fig_pie, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
@@ -286,17 +309,28 @@ if check_password():
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έξοδο"], mode='lines+markers', name='Έξοδο', line=dict(color='#EF553B', width=3)))
             fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Καθαρό (Net)"], mode='lines+markers', name='Καθαρό (Net)', line=dict(color='#AB63FA', width=2, dash='dash')))
 
-            fig_line.update_xaxes(type='category', fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
-            fig_line.update_yaxes(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
+            fig_line.update_xaxes(
+                type='category', 
+                fixedrange=True, 
+                color=chart_font_color, 
+                tickfont=dict(color=chart_font_color, size=12),
+                title=dict(text="Μήνας", font=dict(color=chart_font_color)),
+                gridcolor=chart_grid_color
+            )
+            fig_line.update_yaxes(
+                fixedrange=True, 
+                color=chart_font_color, 
+                tickfont=dict(color=chart_font_color, size=12),
+                title=dict(text="Ποσό (€)", font=dict(color=chart_font_color)),
+                gridcolor=chart_grid_color
+            )
             fig_line.update_layout(
                 height=380, 
                 template=plotly_template, 
                 paper_bgcolor=chart_bg,
                 plot_bgcolor=chart_bg,
                 font=dict(color=chart_font_color),
-                legend=dict(font=dict(color=chart_font_color)),
-                xaxis_title="Μήνας", 
-                yaxis_title="Ποσό (€)"
+                legend=dict(font=dict(color=chart_font_color))
             )
             st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
     st.markdown("---")
