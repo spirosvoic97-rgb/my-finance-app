@@ -196,12 +196,12 @@ if check_password():
             
             # Κουμπί Διαγραφής δίπλα σε κάθε εγγραφή
             if rcol6.button("🗑️", key=f"del_{idx}"):
-            # Υπολογισμός πραγματικής γραμμής στο Google Sheet
-            row_to_delete = int(idx) + 2
-            worksheet.delete_rows(row_to_delete)
-            st.cache_data.clear()
-            st.success("Η εγγραφή διαγράφηκε!")
-            st.rerun()
+                # Υπολογισμός πραγματικής γραμμής στο Google Sheet
+                row_to_delete = int(idx) + 2
+                worksheet.delete_rows(row_to_delete)
+                st.cache_data.clear()
+                st.success("Η εγγραφή διαγράφηκε!")
+                st.rerun()
     else:
         st.info("Δεν υπάρχουν εγγραφές για προβολή.")
 
