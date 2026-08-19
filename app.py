@@ -407,59 +407,53 @@ if check_password():
     st.subheader("📋 Ιστορικό Εγγραφών")
 
     if not filtered_df.empty:
-        hcol1, hcol2, hcol3, hcol4, hcol5, hcol6 = st.columns([1.5, 2.2, 1.0, 2.0, 1.2, 1.2])
-        hcol1.markdown("**Ημερομηνία**")
-        hcol2.markdown("**Περιγραφή**")
-        hcol3.markdown("**Τύπος**")
-        hcol4.markdown("**Κατηγορία**")
-        hcol5.markdown("**Ποσό (€)**")
-        hcol6.markdown("**Ενέργειες**")
-        st.markdown("---")
-
         for idx, row in filtered_df.iterrows():
-            rcol1, rcol2, rcol3, rcol4, rcol5, rcol6 = st.columns([1.5, 2.2, 1.0, 2.0, 1.2, 1.2])
-            rcol1.write(str(row["Ημερομηνία"]))
-            rcol2.write(row["Περιγραφή"] if row["Περιγραφή"] else "-")
-            rcol3.write(row["Τύπος"])
-            rcol4.write(row["Κατηγορία"])
-            rcol5.write(f"{row['Ποσό']:.2f} €")
-            
-            btn_col1, btn_col2 = rcol6.columns(2)
-            
-            with btn_col1:
-                with st.popover("✏️"):
-                    st.write(f"**Επεξεργασία Εγγραφής (Γραμμή {int(idx)+2})**")
-                    edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
-                    edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
-                    edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
-                    
-                    cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
-                    cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
-                    edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
-                    edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
+            with st.container(border=True):
+                # Πρώτη γραμμή: Ημερομηνία, Κατηγορία & Ποσό
+                top_col1, top_col2 = st.columns([3, 1])
+                with top_col1:
+                    st.markdown(f"**{row['Ημερομηνία']}** | `{row['Κατηγορία']}`")
+                    if row["Περιγραφή"]:
+                        st.caption(f"📝 {row['Περιγραφή']}")
+                with top_col2:
+                    color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
+                    st.markdown(f"<h4 style='text-align: right; color: {color}; margin:0;'>{row['Ποσό']:.2f} €</h4>", unsafe_allow_html=True)
 
-                    if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
-                        row_to_edit = int(idx) + 2
-                        rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
-                        worksheet.update(f"A{row_to_edit}:F{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state]])
-                        st.cache_data.clear()
-                        st.success("Η εγγραφή ενημερώθηκε!")
-                        st.rerun()
+                # Δεύτερη γραμμή: Κουμπιά Ενεργειών
+                btn_col1, btn_col2, _ = st.columns([1, 1, 4])
+                
+                with btn_col1:
+                    with st.popover("✏️"):
+                        st.write(f"**Επεξεργασία (Γραμμή {int(idx)+2})**")
+                        edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
+                        edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
+                        edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
+                        
+                        cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
+                        cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
+                        edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
+                        edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
 
-            with btn_col2:
-                with st.popover("🗑️"):
-                    st.write("⚠️ **Επιβεβαίωση Διαγραφής;**")
-                    st.caption(f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {row['Ποσό']}€")
-                    if st.button("Ναι, Διαγραφή!", key=f"confirm_del_{idx}", type="primary"):
-                        row_to_delete = int(idx) + 2
-                        worksheet.delete_rows(row_to_delete)
-                        st.cache_data.clear()
-                        st.success("Η εγγραφή διαγράφηκε!")
-                        st.rerun()
+                        if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
+                            row_to_edit = int(idx) + 2
+                            rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
+                            worksheet.update(f"A{row_to_edit}:F{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state]])
+                            st.cache_data.clear()
+                            st.success("Η εγγραφή ενημερώθηκε!")
+                            st.rerun()
+
+                with btn_col2:
+                    with st.popover("🗑️"):
+                        st.write("⚠️ **Επιβεβαίωση Διαγραφής;**")
+                        st.caption(f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {row['Ποσό']}€")
+                        if st.button("Ναι, Διαγραφή!", key=f"confirm_del_{idx}", type="primary"):
+                            row_to_delete = int(idx) + 2
+                            worksheet.delete_rows(row_to_delete)
+                            st.cache_data.clear()
+                            st.success("Η εγγραφή διαγράφηκε!")
+                            st.rerun()
     else:
         st.info("Δεν υπάρχουν εγγραφές για προβολή.")
-
-    st.markdown("---")
     
     # Download Excel Report
     output = BytesIO()
