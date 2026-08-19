@@ -60,13 +60,13 @@ try:
 except gspread.exceptions.SpreadsheetNotFound:
     sh = gc.create("Finance Tracker Data")
 
-# 1o Φύλλο: Δεδομένα
+# 1o Φύλλο: Δεδομένα (με στήλη Username)
 try:
     worksheet = sh.worksheet("Data")
 except gspread.exceptions.WorksheetNotFound:
     worksheet = sh.get_worksheet(0)
     worksheet.update_title("Data")
-    worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο"])
+    worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
 
 # 2ο Φύλλο: Χρήστες
 try:
@@ -92,13 +92,11 @@ def check_password():
                 username = st.text_input("Χρήστης", key="login_user")
                 password = st.text_input("Κωδικός", type="password", key="login_pass")
                 if st.button("Σύνδεση", key="login_btn"):
-                    # 1. Έλεγχος στα secrets
                     secrets_valid = False
                     if "passwords" in st.secrets and username in st.secrets["passwords"]:
                         if password == st.secrets["passwords"][username]:
                             secrets_valid = True
 
-                    # 2. Έλεγχος στο φύλλο Users
                     sheet_valid = False
                     try:
                         users_data = users_sheet.get_all_records()
@@ -133,7 +131,6 @@ def check_password():
                     elif len(new_password) < 4:
                         st.warning("⚠️ Ο κωδικός πρέπει να έχει τουλάχιστον 4 χαρακτήρες.")
                     else:
-                        # Έλεγχος αν υπάρχει ήδη το username
                         existing_users = []
                         try:
                             users_data = users_sheet.get_all_records()
@@ -152,34 +149,76 @@ def check_password():
     return True
 
 if check_password():
-    STARTING_BALANCE = 672.776
+    current_user = st.session_state.get("current_user", "Guest")
+    
+    # Όλοι οι νέοι χρήστες ξεκινάνε με αρχικό ταμείο 0.00 €
+    STARTING_BALANCE = 0.00
 
-    # Διάβασμα δεδομένων
+    # Διάβασμα δεδομένων & Φιλτράρισμα αποκλειστικά για τον συνδεδεμένο χρήστη
     try:
         data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
-        if not df.empty and "Ημερομηνία" in df.columns:
-            df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
-            df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0.0)
-            df = df.dropna(subset=["Ημερομηνία"])
+        df_raw = pd.DataFrame(data)
+        
+        if not df_raw.empty and "Ημερομηνία" in df_raw.columns:
+            df_raw["Ημερομηνία"] = pd.to_datetime(df_raw["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
+            df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
+            df_raw = df_raw.dropna(subset=["Ημερομηνία"])
+            
+            if "Username" in df_raw.columns:
+                df = df_raw[df_raw["Username"] == current_user].copy()
+            else:
+                df = df_raw.copy()
+        else:
+            df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
     except Exception:
-        df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο"])
+        df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
 
     INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
     EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
 
     st.title("📊 Financial Dashboard & Waterfall Tracker PRO")
 
-    # --- SIDEBAR: Φίλτρα & Theme ---
-    st.sidebar.header("🎨 Εμφάνιση")
+    # --- SIDEBAR: Φίλτρα, Theme & Profile ---
+    st.sidebar.header("🎨 Εμφάνιση & Προφίλ")
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
     
-    if "current_user" in st.session_state:
-        st.sidebar.caption(f"👤 Συνδεδεμένος ως: **{st.session_state['current_user']}**")
-        if st.sidebar.button("🚪 Αποσύνδεση"):
-            st.session_state["authenticated"] = False
-            st.session_state["current_user"] = ""
-            st.rerun()
+    st.sidebar.caption(f"👤 Συνδεδεμένος ως: **{current_user}**")
+    
+    # --- EXPANDER: ΑΛΛΑΓΗ ΚΩΔΙΚΟΥ ---
+    with st.sidebar.expander("🔑 Αλλαγή Κωδικού Πρόσβασης"):
+        curr_pass = st.text_input("Τρέχων Κωδικός", type="password", key="chg_curr_pass")
+        new_pass = st.text_input("Νέος Κωδικός", type="password", key="chg_new_pass")
+        confirm_new_pass = st.text_input("Επιβεβαίωση Νέου Κωδικού", type="password", key="chg_conf_pass")
+        
+        if st.button("Ενημέρωση Κωδικού"):
+            if not curr_pass or not new_pass:
+                st.warning("⚠️ Συμπλήρωσε όλα τα πεδία.")
+            elif new_pass != confirm_new_pass:
+                st.error("❌ Οι νέοι κωδικοί δεν ταιριάζουν!")
+            elif len(new_pass) < 4:
+                st.warning("⚠️ Ο νέος κωδικός πρέπει να έχει τουλάχιστον 4 χαρακτήρες.")
+            else:
+                try:
+                    users_data = users_sheet.get_all_records()
+                    user_row_idx = None
+                    for idx, u in enumerate(users_data):
+                        if str(u.get("Username")) == current_user and check_hash(curr_pass, str(u.get("PasswordHash"))):
+                            user_row_idx = idx + 2
+                            break
+                    
+                    if user_row_idx:
+                        new_hash = make_hash(new_pass)
+                        users_sheet.update_cell(user_row_idx, 2, new_hash)
+                        st.success("✅ Ο κωδικός άλλαξε επιτυχώς!")
+                    else:
+                        st.error("❌ Ο τρέχων κωδικός είναι λανθασμένος.")
+                except Exception as e:
+                    st.error("❌ Σφάλμα κατά την ενημέρωση του κωδικού.")
+
+    if st.sidebar.button("🚪 Αποσύνδεση"):
+        st.session_state["authenticated"] = False
+        st.session_state["current_user"] = ""
+        st.rerun()
 
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
@@ -277,7 +316,6 @@ if check_password():
         
         try:
             img = Image.open(uploaded_receipt).convert('L')
-            
             import pytesseract
             extracted_text = pytesseract.image_to_string(img, lang='ell+eng', config='--psm 6')
             
@@ -313,7 +351,7 @@ if check_password():
 
         if st.sidebar.button("📥 Άμεση Καταχώρηση Απόδειξης"):
             today_str = str(datetime.date.today())
-            worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι"], value_input_option="USER_ENTERED")
+            worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
             st.cache_data.clear()
             st.sidebar.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
             st.rerun()
@@ -346,7 +384,7 @@ if check_password():
                     elif any(w in desc_lower for w in ["δεη", "νερό", "ενοίκιο", "cosmote", "ιντερνετ"]): auto_cat = "Πάγια / Λογαριασμοί"
 
                 today_str = str(datetime.date.today())
-                worksheet.append_row([today_str, extracted_desc if extracted_desc else "Γρήγορη Καταχώρηση", auto_type, auto_cat, extracted_amount, "Όχι"], value_input_option="USER_ENTERED")
+                worksheet.append_row([today_str, extracted_desc if extracted_desc else "Γρήγορη Καταχώρηση", auto_type, auto_cat, extracted_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
                 st.cache_data.clear()
                 st.sidebar.success(f"Προστέθηκε: {extracted_desc} - {extracted_amount}€ ({auto_cat})")
                 st.rerun()
@@ -391,7 +429,7 @@ if check_password():
 
     if st.sidebar.button("Αποθήκευση"):
         rec_val = "Ναι" if is_recurring else "Όχι"
-        worksheet.append_row([str(date), description, entry_type, category, float(amount), rec_val], value_input_option="USER_ENTERED")
+        worksheet.append_row([str(date), description, entry_type, category, float(amount), rec_val, current_user], value_input_option="USER_ENTERED")
         st.cache_data.clear()
         st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
         st.rerun()
@@ -422,7 +460,7 @@ if check_password():
     days_remaining = (days_in_month - now.day) + 1
     safe_to_spend_daily = (final_balance / days_remaining) if final_balance > 0 and days_remaining > 0 else 0.0
 
-    if safe_to_spend_daily < 10.0:
+    if safe_to_spend_daily < 10.0 and final_balance > 0:
         st.error(f"🚨 **Alert Χαμηλού Ημερήσιου Ορίου:** Το ημερήσιο διαθέσιμο υπόλοιπό σου (`Safe-to-Spend`) έπεσε στα **{safe_to_spend_daily:.2f} € / ημέρα** για τις {days_remaining} ημέρες που απομένουν στο μήνα!")
 
     # --- DASHBOARD METRICS ---
@@ -560,7 +598,7 @@ if check_password():
                         if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
                             row_to_edit = int(idx) + 2
                             rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
-                            worksheet.update(f"A{row_to_edit}:F{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state]])
+                            worksheet.update(f"A{row_to_edit}:G{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state, current_user]])
                             st.cache_data.clear()
                             st.success("Η εγγραφή ενημερώθηκε!")
                             st.rerun()
@@ -589,7 +627,7 @@ if check_password():
     st.download_button(
         label="📥 Download Excel Report",
         data=excel_data,
-        file_name="finance_report.xlsx",
+        file_name=f"finance_report_{current_user}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
