@@ -13,6 +13,28 @@ from PIL import Image
 
 st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
 
+# --- PWA HEAD INJECTION (Εγκατάσταση ως App σε Android / iOS) ---
+st.markdown(
+    """
+    <head>
+        <link rel="manifest" href="./manifest.json">
+        <meta name="theme-color" content="#11151C">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="FinancePRO">
+        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2845/2845828.png">
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('./service-worker.js');
+                });
+            }
+        </script>
+    </head>
+    """,
+    unsafe_allow_html=True
+)
+
 # --- LOGIN AUTHENTICATION ---
 def check_password():
     if "authenticated" not in st.session_state:
