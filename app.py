@@ -179,13 +179,23 @@ if check_password():
     st.subheader("📈 Μηνιαία Τάση Εσόδων - Εξόδων")
     if not df.empty:
         trend_df = df.copy()
-        trend_df["Μήνας-Έτος"] = pd.to_datetime(trend_df["Ημερομηνία"]).dt.to_period("M").astype(str)
+        trend_df["Μήνας-Έτος"] = pd.to_datetime(trend_df["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m")
+        trend_df = trend_df.dropna(subset=["Μήνας-Έτος"])
+        
         monthly_summary = trend_df.groupby(["Μήνας-Έτος", "Τύπος"])["Ποσό"].sum().reset_index()
+        monthly_summary = monthly_summary.sort_values("Μήνας-Έτος")
         
         if not monthly_summary.empty:
-            fig_line = px.line(monthly_summary, x="Μήνας-Έτος", y="Ποσό", color="Τύπος",
-                               markers=True, template="plotly_dark",
-                               color_discrete_map={"Έσοδο": "#00CC96", "Έξοδο": "#EF553B"})
+            fig_line = px.line(
+                monthly_summary, 
+                x="Μήνας-Έτος", 
+                y="Ποσό", 
+                color="Τύπος",
+                markers=True, 
+                template="plotly_dark",
+                color_discrete_map={"Έσοδο": "#00CC96", "Έξοδο": "#EF553B"}
+            )
+            fig_line.update_xaxes(type='category')
             fig_line.update_layout(height=350, xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
             st.plotly_chart(fig_line, use_container_width=True)
     st.markdown("---")
@@ -213,7 +223,7 @@ if check_password():
             rcol4.write(row["Κατηγορία"])
             rcol5.write(f"{row['Ποσό']:.2f} €")
             
-            # Δύο κουμπιά στην ίδια στήλη: Edit (✏️) και Delete (🗑️ με επιβεβαίωση)
+            # Δύο κουμπιά στην ίδια στήλη: Edit (✏️) και Delete (🗑️)
             btn_col1, btn_col2 = rcol6.columns(2)
             
             # Popover παράθυρο για Επεξεργασία
