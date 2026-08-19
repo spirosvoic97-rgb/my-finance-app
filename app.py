@@ -12,24 +12,38 @@ import re
 import hashlib
 from PIL import Image
 
-st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
+# 1. Favicon στο Tab του Browser
+ICON_URL = "https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png"
 
-# --- PWA HEAD INJECTION ---
+st.set_page_config(
+    page_title="FinancePRO",
+    page_icon=ICON_URL,
+    layout="wide"
+)
+
+# 2. PWA HEAD INJECTION (Force New Icon & Title)
 st.markdown(
-    """
+    f"""
     <head>
         <link rel="manifest" href="./manifest.json">
         <meta name="theme-color" content="#11151C">
+        <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="apple-mobile-web-app-title" content="FinancePRO">
-        <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2845/2845828.png">
+        <meta name="application-name" content="FinancePRO">
+        
+        <!-- Icons -->
+        <link rel="apple-touch-icon" href="{ICON_URL}">
+        <link rel="icon" type="image/png" href="{ICON_URL}">
+        <link rel="shortcut icon" href="{ICON_URL}">
+        
         <script>
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
+            if ('serviceWorker' in navigator) {{
+                window.addEventListener('load', function() {{
                     navigator.serviceWorker.register('./service-worker.js');
-                });
-            }
+                }});
+            }}
         </script>
     </head>
     """,
@@ -77,7 +91,7 @@ def check_password():
         st.session_state["authenticated"] = False
 
     if not st.session_state["authenticated"]:
-        st.title("🔒 Personal Finance Tracker PRO")
+        st.title("🔒 FinancePRO")
         tab_login, tab_signup = st.tabs(["🔑 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη"])
         
         with tab_login:
@@ -333,12 +347,11 @@ if check_password():
 
         st.markdown("---")
 
-        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ ΜΕ PAGINATION (10 ΕΓΓΡΑΦΕΣ / ΣΕΛΙΔΑ) ---
+        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ ΜΕ PAGINATION ---
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
             sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False).reset_index(drop=True)
             
-            # Pagination Settings
             items_per_page = 10
             total_items = len(sorted_history)
             total_pages = (total_items - 1) // items_per_page + 1
@@ -355,7 +368,6 @@ if check_password():
             end_idx = start_idx + items_per_page
             page_items = sorted_history.iloc[start_idx:end_idx]
 
-            # Εμφάνιση εγγραφών τρέχουσας σελίδας
             for idx, row in page_items.iterrows():
                 amt_color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
                 desc_txt = f" ({row['Περιγραφή']})" if row['Περιγραφή'] else ""
@@ -573,7 +585,7 @@ if check_password():
     st.markdown(
         """
         <div style="text-align: center; color: #888888; font-size: 12px; margin-bottom: 20px;">
-            💻 <b>Personal Finance Tracker PRO</b> | Designed & Developed by <b>Σπύρος Βοϊκόπουλος</b> <br>
+            💻 <b>FinancePRO</b> | Designed & Developed by <b>Σπύρος Βοϊκόπουλος</b> <br>
             ⚡ Powered by Streamlit & Google Sheets API
         </div>
         """,
