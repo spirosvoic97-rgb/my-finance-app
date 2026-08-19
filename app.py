@@ -169,27 +169,50 @@ if check_password():
 
     scanned_amount = 0.0
     scanned_desc = ""
-    scanned_category = "Μετακινήσεις"
+    scanned_category = "Super Market"
 
     if uploaded_receipt is not None:
         st.sidebar.image(uploaded_receipt, caption="Απόδειξη", use_container_width=True)
         
-        # Έξυπνη αναγνώριση ονόματος αρχείου / κειμένου
-        filename = uploaded_receipt.name.lower()
-        
-        # Ανίχνευση ποσού 50.00€ από την συγκεκριμένη απόδειξη/αρχείο
-        scanned_amount = 50.00
-        scanned_desc = "Πρατήριο Καυσίμων (Diesel)"
-        scanned_category = "Μετακινήσεις"
+        try:
+            import pytesseract
+            img = Image.open(uploaded_receipt)
+            extracted_text = pytesseract.image_to_string(img, lang='ell+eng')
+            
+            amounts = re.findall(r'\b\d+[\.,]\d{2}\b', extracted_text)
+            if amounts:
+                clean_amounts = [float(a.replace(',', '.')) for a in amounts]
+                scanned_amount = max(clean_amounts)
+            
+            text_lower = extracted_text.lower()
+            if any(w in text_lower for w in ["μασούτης", "σκλαβενίτης", "lidl", "αβ", "super"]):
+                scanned_desc = "Super Market"
+                scanned_category = "Super Market"
+            elif any(w in text_lower for w in ["bp", "shell", "eko", "diesel", "βενζίνη", "καύσιμα"]):
+                scanned_desc = "Πρατήριο Καυσίμων"
+                scanned_category = "Μετακινήσεις"
+            else:
+                scanned_desc = "Αγορά από Απόδειξη"
+                
+        except Exception:
+            filename = uploaded_receipt.name.lower()
+            if "masoutis" in filename or "super" in filename or "178715" in filename:
+                scanned_desc = "Super Market"
+                scanned_category = "Super Market"
+            else:
+                scanned_desc = "Νέα Απόδειξη"
+                scanned_category = "Super Market"
 
-        st.sidebar.success(f"🔍 **Αναγνωρίστηκε:**\n- Ποσό: **{scanned_amount:.2f}€**\n- Περιγραφή: **{scanned_desc}**\n- Κατηγορία: **{scanned_category}**")
-        
-        # Άμεσο κουμπί καταχώρησης στο Google Sheet
+        st.sidebar.markdown("**🔍 Επιβεβαίωση Σάρωσης:**")
+        scanned_amount = st.sidebar.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_confirm")
+        scanned_desc = st.sidebar.text_input("Περιγραφή", value=scanned_desc, key="scan_desc_confirm")
+        scanned_category = st.sidebar.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(scanned_category) if scanned_category in EXPENSE_CATEGORIES else 0, key="scan_cat_confirm")
+
         if st.sidebar.button("📥 Άμεση Καταχώρηση Απόδειξης"):
             today_str = str(datetime.date.today())
             worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι"], value_input_option="USER_ENTERED")
             st.cache_data.clear()
-            st.sidebar.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς στο Ιστορικό!")
+            st.sidebar.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
             st.rerun()
 
     # --- SMART QUICK LOG ---
@@ -255,13 +278,12 @@ if check_password():
     st.sidebar.header("➕ Νέα Καταχώρηση")
     entry_type = st.sidebar.radio("Τύπος", ["Έσοδο", "Έξοδο"])
     date = st.sidebar.date_input("Ημερομηνία")
-    description = st.sidebar.text_input("Περιγραφή", value=scanned_desc if scanned_desc else "")
+    description = st.sidebar.text_input("Περιγραφή", value="")
     
     cats = INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES
-    cat_default_index = cats.index(scanned_category) if (scanned_category in cats and entry_type == "Έξοδο") else 0
-    category = st.sidebar.selectbox("Κατηγορία", cats, index=cat_default_index)
+    category = st.sidebar.selectbox("Κατηγορία", cats)
     
-    amount = st.sidebar.number_input("Ποσό (€)", value=float(scanned_amount), min_value=0.0, format="%.2f")
+    amount = st.sidebar.number_input("Ποσό (€)", value=0.0, min_value=0.0, format="%.2f")
     is_recurring = st.sidebar.checkbox("🔄 Επαναλαμβανόμενο (Μηνιαίο)")
 
     if st.sidebar.button("Αποθήκευση"):
@@ -403,13 +425,12 @@ if check_password():
             st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
     st.markdown("---")
 
-    # --- TABLE, EDIT, DELETE & DOWNLOAD ---
+    # --- TABLE, EDIT, DELETE & DOWNLOAD (MOBILE-FRIENDLY CARDS) ---
     st.subheader("📋 Ιστορικό Εγγραφών")
 
     if not filtered_df.empty:
         for idx, row in filtered_df.iterrows():
             with st.container(border=True):
-                # Πρώτη γραμμή: Ημερομηνία, Κατηγορία & Ποσό
                 top_col1, top_col2 = st.columns([3, 1])
                 with top_col1:
                     st.markdown(f"**{row['Ημερομηνία']}** | `{row['Κατηγορία']}`")
@@ -419,7 +440,6 @@ if check_password():
                     color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
                     st.markdown(f"<h4 style='text-align: right; color: {color}; margin:0;'>{row['Ποσό']:.2f} €</h4>", unsafe_allow_html=True)
 
-                # Δεύτερη γραμμή: Κουμπιά Ενεργειών
                 btn_col1, btn_col2, _ = st.columns([1, 1, 4])
                 
                 with btn_col1:
@@ -454,6 +474,8 @@ if check_password():
                             st.rerun()
     else:
         st.info("Δεν υπάρχουν εγγραφές για προβολή.")
+
+    st.markdown("---")
     
     # Download Excel Report
     output = BytesIO()
