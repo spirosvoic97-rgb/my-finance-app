@@ -198,11 +198,39 @@ if check_password():
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
 
-    # CSS Injection για Ultra-compact Popovers
+    # CSS Injection για Ultra-compact Mobile Layout & Popovers
     st.markdown("""
         <style>
         div[data-testid="stPopover"] { display: inline-block !important; margin: 0 !important; }
-        div[data-testid="stPopover"] > button { padding: 2px 8px !important; height: 28px !important; min-height: 28px !important; font-size: 12px !important; }
+        div[data-testid="stPopover"] > button { padding: 1px 5px !important; height: 26px !important; min-height: 26px !important; font-size: 11px !important; line-height: 1 !important; border-radius: 6px !important; }
+        
+        .history-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #262c36;
+        }
+        .history-info {
+            flex-grow: 1;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding-right: 6px;
+        }
+        .history-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .history-amount {
+            font-weight: bold;
+            font-size: 13px;
+            min-width: 65px;
+            text-align: right;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -350,7 +378,7 @@ if check_password():
 
         st.markdown("---")
 
-        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ ΜΕ PAGINATION ---
+        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ (ULTRA-COMPACT MOBILE RESPONSIVE LAYOUT) ---
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
             sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False).reset_index(drop=True)
@@ -375,45 +403,43 @@ if check_password():
                 amt_color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
                 desc_txt = f" ({row['Περιγραφή']})" if row['Περιγραφή'] else ""
                 
-                with st.container():
-                    col_info, col_actions, col_amt = st.columns([4, 2, 2])
-                    
-                    with col_info:
-                        st.markdown(f"**{row['Ημερομηνία']}** <span style='color:#888888; font-size:12px;'>{row['Κατηγορία']}{desc_txt}</span>", unsafe_allow_html=True)
-                        
-                    with col_actions:
-                        act1, act2 = st.columns(2)
-                        with act1:
-                            with st.popover("✏️"):
-                                st.write("Επεξεργασία")
-                                edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
-                                edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
-                                edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
-                                cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
-                                cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
-                                edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
-                                edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
-
-                                if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
-                                    row_to_edit = int(idx) + 2
-                                    rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
-                                    worksheet.update(f"A{row_to_edit}:G{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state, current_user]])
-                                    st.cache_data.clear()
-                                    st.rerun()
-
-                        with act2:
-                            with st.popover("🗑️"):
-                                st.write("Διαγραφή;")
-                                if st.button("Ναι!", key=f"confirm_del_{idx}", type="primary"):
-                                    row_to_delete = int(idx) + 2
-                                    worksheet.delete_rows(row_to_delete)
-                                    st.cache_data.clear()
-                                    st.rerun()
-
-                    with col_amt:
-                        st.markdown(f"<div style='text-align: right; font-weight: bold; font-size: 15px; color: {amt_color};'>{row['Ποσό']:.2f} €</div>", unsafe_allow_html=True)
+                # Οριζόντια Διάταξη: 75% Πληροφορίες + 25% Κουμπιά/Ποσό
+                c_info, c_acts = st.columns([3, 1])
                 
-                st.markdown("<hr style='margin: 4px 0; border-color: #222222;'>", unsafe_allow_html=True)
+                with c_info:
+                    st.markdown(f"<div style='font-size: 13px; line-height: 1.2;'><b>{row['Ημερομηνία']}</b> <span style='color:#888888;'>{row['Κατηγορία']}{desc_txt}</span></div>", unsafe_allow_html=True)
+                
+                with c_acts:
+                    a1, a2, a3 = st.columns([1, 1, 2])
+                    with a1:
+                        with st.popover("✏️"):
+                            st.write("Επεξεργασία")
+                            edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
+                            edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
+                            edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
+                            cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
+                            cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
+                            edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
+                            edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
+
+                            if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
+                                row_to_edit = int(idx) + 2
+                                rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
+                                worksheet.update(f"A{row_to_edit}:G{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state, current_user]])
+                                st.cache_data.clear()
+                                st.rerun()
+                    with a2:
+                        with st.popover("🗑️"):
+                            st.write("Διαγραφή;")
+                            if st.button("Ναι!", key=f"confirm_del_{idx}", type="primary"):
+                                row_to_delete = int(idx) + 2
+                                worksheet.delete_rows(row_to_delete)
+                                st.cache_data.clear()
+                                st.rerun()
+                    with a3:
+                        st.markdown(f"<div style='text-align: right; font-weight: bold; font-size: 13px; color: {amt_color};'>{row['Ποσό']:.2f}€</div>", unsafe_allow_html=True)
+                
+                st.markdown("<hr style='margin: 3px 0; border-color: #222222;'>", unsafe_allow_html=True)
 
             # PAGINATION CONTROLS
             p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
