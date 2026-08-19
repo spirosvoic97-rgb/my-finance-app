@@ -70,12 +70,6 @@ if check_password():
     INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
     EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
 
-    BUDGET_LIMITS = {
-        "Διασκέδαση / Έξοδος": 300.0,
-        "Super Market": 200.0,
-        "Προσωπικά / Χόμπι": 150.0
-    }
-
     st.title("📊 Financial Dashboard & Waterfall Tracker PRO")
 
     # --- SIDEBAR: Φίλτρα & Καταχώρηση ---
@@ -88,6 +82,19 @@ if check_password():
         search_query = st.sidebar.text_input("🔎 Αναζήτηση Περιγραφής", "")
     else:
         selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
+
+    st.sidebar.markdown("---")
+    st.sidebar.header("⚙️ Όρια Προϋπολογισμού (Budget Limits)")
+    with st.sidebar.expander("Ρύθμιση Ορίων ανά Κατηγορία"):
+        limit_fun = st.number_input("Διασκέδαση / Έξοδος (€)", value=300.0, step=50.0)
+        limit_sm = st.number_input("Super Market (€)", value=200.0, step=50.0)
+        limit_hobby = st.number_input("Προσωπικά / Χόμπι (€)", value=150.0, step=50.0)
+
+    BUDGET_LIMITS = {
+        "Διασκέδαση / Έξοδος": limit_fun,
+        "Super Market": limit_sm,
+        "Προσωπικά / Χόμπι": limit_hobby
+    }
 
     st.sidebar.markdown("---")
     st.sidebar.header("➕ Νέα Καταχώρηση")
@@ -136,7 +143,7 @@ if check_password():
     if not filtered_df.empty:
         exp_by_cat = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
         for cat, limit in BUDGET_LIMITS.items():
-            if cat in exp_by_cat and exp_by_cat[cat] > limit:
+            if limit > 0 and cat in exp_by_cat and exp_by_cat[cat] > limit:
                 st.warning(f"⚠️ **Υπέρβαση Ορίου:** Τα έξοδα στην κατηγορία **{cat}** έφτασαν τα **{exp_by_cat[cat]:.2f} €** (Όριο: {limit:.2f} €)!")
 
     # --- GRAPHICAL CHARTS (WATERFALL + PIE CHART) ---
@@ -175,28 +182,37 @@ if check_password():
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
 
-    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ ---
-    st.subheader("📈 Μηνιαία Τάση Εσόδων - Εξόδων")
+    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ (ΜΕ NET LINE & ΜΟΡΦΗ MMM YYYY) ---
+    st.subheader("📈 Μηνιαία Τάση Εσόδων, Εξόδων & Καθαρού Υπολοίπου")
     if not df.empty:
         trend_df = df.copy()
-        trend_df["Μήνας-Έτος"] = pd.to_datetime(trend_df["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m")
-        trend_df = trend_df.dropna(subset=["Μήνας-Έτος"])
+        trend_df["dt"] = pd.to_datetime(trend_df["Ημερομηνία"], errors="coerce")
+        trend_df = trend_df.dropna(subset=["dt"])
+        trend_df["Sort_Key"] = trend_df["dt"].dt.strftime("%Y-%m")
+        trend_df["Μήνας"] = trend_df["dt"].dt.strftime("%b %Y")
         
-        monthly_summary = trend_df.groupby(["Μήνας-Έτος", "Τύπος"])["Ποσό"].sum().reset_index()
-        monthly_summary = monthly_summary.sort_values("Μήνας-Έτος")
+        # Groupby ανά μήνα και τύπο
+        monthly_summary = trend_df.groupby(["Sort_Key", "Μήνας", "Τύπος"])["Ποσό"].sum().reset_index()
         
         if not monthly_summary.empty:
-            fig_line = px.line(
-                monthly_summary, 
-                x="Μήνας-Έτος", 
-                y="Ποσό", 
-                color="Τύπος",
-                markers=True, 
-                template="plotly_dark",
-                color_discrete_map={"Έσοδο": "#00CC96", "Έξοδο": "#EF553B"}
-            )
+            # Pivot για υπολογισμό του Καθαρού (Net = Έσοδα - Έξοδα)
+            pivot_df = monthly_summary.pivot(index=["Sort_Key", "Μήνας"], columns="Τύπος", values="Ποσό").fillna(0.0).reset_index()
+            if "Έσοδο" not in pivot_df.columns: pivot_df["Έσοδο"] = 0.0
+            if "Έξοδο" not in pivot_df.columns: pivot_df["Έξοδο"] = 0.0
+            pivot_df["Καθαρό (Net)"] = pivot_df["Έσοδο"] - pivot_df["Έξοδο"]
+            
+            pivot_df = pivot_df.sort_values("Sort_Key")
+
+            fig_line = go.Figure()
+            # Γραμμή Εσόδων
+            fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έσοδο"], mode='lines+markers', name='Έσοδο', line=dict(color='#00CC96', width=3)))
+            # Γραμμή Εξόδων
+            fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έξοδο"], mode='lines+markers', name='Έξοδο', line=dict(color='#EF553B', width=3)))
+            # Γραμμή Καθαρού Υπολοίπου
+            fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Καθαρό (Net)"], mode='lines+markers', name='Καθαρό (Net)', line=dict(color='#AB63FA', width=2, dash='dash')))
+
             fig_line.update_xaxes(type='category')
-            fig_line.update_layout(height=350, xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
+            fig_line.update_layout(height=380, template="plotly_dark", xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
             st.plotly_chart(fig_line, use_container_width=True)
     st.markdown("---")
 
