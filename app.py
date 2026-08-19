@@ -170,10 +170,11 @@ if check_password():
     scanned_desc = ""
 
     if uploaded_receipt is not None:
-        st.sidebar.image(uploaded_receipt, caption="Απόδειξη", use_column_width=True)
-        # Προσομοίωση OCR extraction
+        # ΔΙΟΡΘΩΣΗ: Xρήση use_container_width=True αντί για use_column_width=True
+        st.sidebar.image(uploaded_receipt, caption="Απόδειξη", use_container_width=True)
+        
         receipt_filename = uploaded_receipt.name.lower()
-        if "super" in receipt_filename or "market" in receipt_filename or "lidl" in receipt_filename or "ab" in receipt_filename:
+        if any(term in receipt_filename for term in ["super", "market", "lidl", "ab", "sklavenitis"]):
             scanned_desc = "Super Market Απόδειξη"
             scanned_amount = 24.50
         else:
@@ -282,9 +283,8 @@ if check_password():
     days_remaining = (days_in_month - now.day) + 1
     safe_to_spend_daily = (final_balance / days_remaining) if final_balance > 0 and days_remaining > 0 else 0.0
 
-    # Ειδοποίηση αν το Safe-to-Spend πέσει κάτω από 10€
     if safe_to_spend_daily < 10.0:
-        st.error(f"🚨 **Alert Χαμηλού Ημερήσιου Ορίου:** Το ημερήσιο διαθέσιμο υπόλοιπό σου (`Safe-to-Spend`) έπεσε στα **{safe_to_spend_daily:.2f} € / ημέρα** για τις {days_remaining} ημέρες που απομένουν στο μήνα!")
+        st.error(f"🚨 **Alert Χαμηλού Ημερήσιο Ορίου:** Το ημερήσιο διαθέσιμο υπόλοιπό σου (`Safe-to-Spend`) έπεσε στα **{safe_to_spend_daily:.2f} € / ημέρα** για τις {days_remaining} ημέρες που απομένουν στο μήνα!")
 
     # --- DASHBOARD METRICS ---
     col1, col2, col3, col4, col5 = st.columns([1, 1, 1, 1, 1.2])
