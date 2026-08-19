@@ -172,41 +172,67 @@ if check_password():
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
 
-    # --- TABLE & DOWNLOAD ---
+    # --- TABLE, EDIT, DELETE & DOWNLOAD ---
     st.subheader("📋 Ιστορικό Εγγραφών")
+
     if not filtered_df.empty:
         # Επικεφαλίδες Πίνακα
-        hcol1, hcol2, hcol3, hcol4, hcol5, hcol6 = st.columns([1.5, 2.5, 1.2, 2.2, 1.2, 0.8])
+        hcol1, hcol2, hcol3, hcol4, hcol5, hcol6 = st.columns([1.5, 2.2, 1.0, 2.0, 1.2, 1.2])
         hcol1.markdown("**Ημερομηνία**")
         hcol2.markdown("**Περιγραφή**")
         hcol3.markdown("**Τύπος**")
         hcol4.markdown("**Κατηγορία**")
         hcol5.markdown("**Ποσό (€)**")
-        hcol6.markdown("**Ενέργεια**")
+        hcol6.markdown("**Ενέργειες**")
         st.markdown("---")
 
-        # Εμφάνιση κάθε εγγραφής σε ξεχωριστή γραμμή με κουμπί διαγραφής
+        # Εμφάνιση κάθε εγγραφής
         for idx, row in filtered_df.iterrows():
-            rcol1, rcol2, rcol3, rcol4, rcol5, rcol6 = st.columns([1.5, 2.5, 1.2, 2.2, 1.2, 0.8])
+            rcol1, rcol2, rcol3, rcol4, rcol5, rcol6 = st.columns([1.5, 2.2, 1.0, 2.0, 1.2, 1.2])
             rcol1.write(str(row["Ημερομηνία"]))
             rcol2.write(row["Περιγραφή"] if row["Περιγραφή"] else "-")
             rcol3.write(row["Τύπος"])
             rcol4.write(row["Κατηγορία"])
             rcol5.write(f"{row['Ποσό']:.2f} €")
             
-            # Κουμπί Διαγραφής δίπλα σε κάθε εγγραφή
-            if rcol6.button("🗑️", key=f"del_{idx}"):
-                # Υπολογισμός πραγματικής γραμμής στο Google Sheet
-                row_to_delete = int(idx) + 2
-                worksheet.delete_rows(row_to_delete)
-                st.cache_data.clear()
-                st.success("Η εγγραφή διαγράφηκε!")
-                st.rerun()
+            # Δύο κουμπιά στην ίδια στήλη: Edit (✏️) και Delete (🗑️)
+            btn_col1, btn_col2 = rcol6.columns(2)
+            
+            # Popover παράθυρο για Επεξεργασία
+            with btn_col1:
+                with st.popover("✏️"):
+                    st.write(f"**Επεξεργασία Εγγραφής (Γραμμή {int(idx)+2})**")
+                    edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
+                    edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
+                    edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
+                    
+                    cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
+                    cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
+                    edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
+                    edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
+
+                    if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
+                        row_to_edit = int(idx) + 2
+                        # Ενημέρωση όλων των κελιών της συγκεκριμένης γραμμής στο Google Sheet
+                        worksheet.update(f"A{row_to_edit}:E{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount]])
+                        st.cache_data.clear()
+                        st.success("Η εγγραφή ενημερώθηκε!")
+                        st.rerun()
+
+            # Κουμπί Διαγραφής
+            with btn_col2:
+                if st.button("🗑️", key=f"del_{idx}"):
+                    row_to_delete = int(idx) + 2
+                    worksheet.delete_rows(row_to_delete)
+                    st.cache_data.clear()
+                    st.success("Η εγγραφή διαγράφηκε!")
+                    st.rerun()
     else:
         st.info("Δεν υπάρχουν εγγραφές για προβολή.")
 
     st.markdown("---")
     
+    # Download Excel Report
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         df.to_excel(writer, index=False, sheet_name='Data')
@@ -217,4 +243,16 @@ if check_password():
         data=excel_data,
         file_name="finance_report.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+    # --- FOOTER ---
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <div style="text-align: center; color: #888888; font-size: 14px;">
+            💻 <b>Personal Finance Tracker PRO</b> | Designed & Developed by <b>Σπύρος Βοϊκόπουλος</b> <br>
+            ⚡ Powered by Streamlit & Google Sheets API
+        </div>
+        """,
+        unsafe_allow_html=True
     )
