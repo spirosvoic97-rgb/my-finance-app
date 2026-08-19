@@ -105,7 +105,7 @@ def check_password():
                         st.session_state["authenticated"] = True
                         st.session_state["current_user"] = username
                         st.session_state["theme"] = "Dark Mode 🌙"
-                        st.session_state["active_nav"] = "📊 Dashboard"
+                        st.session_state["active_nav"] = "📊"
                         st.success("✅ Επιτυχής σύνδεση!")
                         st.rerun()
                     else:
@@ -182,7 +182,7 @@ if check_password():
     else:
         selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
 
-    # Theme CSS
+    # Theme CSS & STICKY BOTTOM BAR STYLING
     theme = st.session_state.get("theme", "Dark Mode 🌙")
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
@@ -196,22 +196,47 @@ if check_password():
             input, select, textarea, div[role="combobox"], [data-baseweb="select"] { background-color: #FFFFFF !important; color: #111111 !important; border: 1px solid #111111 !important; }
             .stButton > button, button[aria-haspopup="dialog"], .stDownloadButton > button { background-color: #FFFFFF !important; color: #111111 !important; border: 1px solid #111111 !important; font-weight: bold !important; }
             hr { border-color: #E0E0E0 !important; }
+            
+            /* Sticky Bottom Navigation Bar */
+            div[data-element-id="sticky_nav"] {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                background-color: #FFFFFF !important;
+                border-top: 1px solid #E0E0E0 !important;
+                padding: 8px 15px !important;
+                z-index: 999999 !important;
+            }
             </style>
         """, unsafe_allow_html=True)
     else:
         plotly_template = "plotly_dark"
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
+        st.markdown("""
+            <style>
+            /* Sticky Bottom Navigation Bar */
+            div[data-element-id="sticky_nav"] {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                background-color: #11151C !important;
+                border-top: 1px solid #222222 !important;
+                padding: 8px 15px !important;
+                z-index: 999999 !important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
 
-    # --- CURRENT SELECTION ---
     if "active_nav" not in st.session_state:
-        st.session_state["active_nav"] = "📊 Dashboard"
+        st.session_state["active_nav"] = "📊"
 
     # -------------------------------------------------------------------
     # ENOTHTA 1: DASHBOARD
     # -------------------------------------------------------------------
-    if st.session_state["active_nav"] == "📊 Dashboard":
-        # Φιλτράρισμα
+    if st.session_state["active_nav"] == "📊":
         filtered_df = df.copy()
         if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
             temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
@@ -231,19 +256,19 @@ if check_password():
         overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
         final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
-        # Safe-to-Spend Calculator
+        # Safe-to-Spend
         now = datetime.date.today()
         days_in_month = calendar.monthrange(now.year, now.month)[1]
         days_remaining = (days_in_month - now.day) + 1
         safe_to_spend_daily = (final_balance / days_remaining) if final_balance > 0 and days_remaining > 0 else 0.0
 
-        # --- TRADING 212 STYLE HEADER HEADER ---
+        # --- TRADING 212 STYLE HEADER ---
         st.markdown(
             f"""
-            <div style="background-color: {card_bg}; padding: 20px; border-radius: 12px; margin-bottom: 20px; text-align: center; border: 1px solid #333333;">
-                <div style="font-size: 13px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">Συνολικό Υπόλοιπο</div>
-                <div style="font-size: 38px; font-weight: bold; margin: 5px 0; color: {chart_font_color};">{final_balance:,.2f} €</div>
-                <div style="font-size: 14px; margin-top: 10px; display: flex; justify-content: center; gap: 20px;">
+            <div style="background-color: {card_bg}; padding: 18px; border-radius: 12px; margin-bottom: 15px; text-align: center; border: 1px solid #333333;">
+                <div style="font-size: 12px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">Συνολικό Υπόλοιπο</div>
+                <div style="font-size: 36px; font-weight: bold; margin: 4px 0; color: {chart_font_color};">{final_balance:,.2f} €</div>
+                <div style="font-size: 13px; margin-top: 8px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
                     <span style="color: #00CC96;">🟢 Έσοδα: <b>{total_income:,.2f} €</b></span>
                     <span style="color: #EF553B;">🔴 Έξοδα: <b>{total_expenses:,.2f} €</b></span>
                     <span style="color: #AB63FA;">💡 Safe-to-Spend: <b>{safe_to_spend_daily:,.2f} €/ημέρα</b></span>
@@ -254,7 +279,7 @@ if check_password():
         )
 
         if safe_to_spend_daily < 10.0 and final_balance > 0:
-            st.error(f"🚨 **Alert Χαμηλού Ημερήσιου Ορίου:** Το ημερήσιο διαθέσιμο υπόλοιπό σου (`Safe-to-Spend`) έπεσε στα **{safe_to_spend_daily:.2f} € / ημέρα** για τις {days_remaining} ημέρες που απομένουν στο μήνα!")
+            st.error(f"🚨 **Alert Χαμηλού Ημερήσιου Ορίου:** Το ημερήσιο διαθέσιμο υπόλοιπό σου (`Safe-to-Spend`) έπεσε στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
 
         # Charts Row
         chart_col1, chart_col2 = st.columns([3, 2])
@@ -271,7 +296,7 @@ if check_password():
                     name="Cashflow", orientation="v",
                     measure=measure_list, x=x_list, textposition="outside",
                     text=[f"{val:.2f}" if val != 0 else f"{net_month:.2f}" for val in y_list[:-1]] + [f"{net_month:.2f}"],
-                    textfont=dict(color=chart_font_color, size=12),
+                    textfont=dict(color=chart_font_color, size=11),
                     y=y_list,
                     connector={"line": {"color": "rgb(63, 63, 63)"}},
                     decreasing={"marker": {"color": "#EF553B"}},
@@ -279,7 +304,7 @@ if check_password():
                     totals={"marker": {"color": "#7F7F7F"}}
                 ))
                 fig_waterfall.update_layout(
-                    showlegend=False, template=plotly_template, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), height=350,
+                    showlegend=False, template=plotly_template, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), height=320,
                     xaxis=dict(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color),
                     yaxis=dict(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
                 )
@@ -292,7 +317,7 @@ if check_password():
             if not filtered_df.empty and total_expenses > 0:
                 exp_df = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]
                 fig_pie = px.pie(exp_df, values="Ποσό", names="Κατηγορία", hole=0.4, template=plotly_template)
-                fig_pie.update_layout(height=350, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), legend=dict(font=dict(color=chart_font_color)))
+                fig_pie.update_layout(height=320, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), legend=dict(font=dict(color=chart_font_color)))
                 fig_pie.update_traces(textfont=dict(color=chart_font_color))
                 st.plotly_chart(fig_pie, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
             else:
@@ -322,28 +347,33 @@ if check_password():
 
                 fig_line.update_xaxes(type='category', fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
                 fig_line.update_yaxes(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
-                fig_line.update_layout(height=320, template=plotly_template, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), legend=dict(font=dict(color=chart_font_color)))
+                fig_line.update_layout(height=300, template=plotly_template, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), legend=dict(font=dict(color=chart_font_color)))
                 st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
 
         st.markdown("---")
 
-        # Ιστορικό Εγγραφών (Cards)
+        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ (COMPACT & LATEST FIRST) ---
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
-            for idx, row in filtered_df.iterrows():
+            # Ταξινόμηση ώστε η πιο πρόσφατη εγγραφή να φαίνεται ΠΡΩΤΗ
+            sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False)
+            
+            for idx, row in sorted_history.iterrows():
                 with st.container(border=True):
-                    top_col1, top_col2 = st.columns([3, 1])
-                    with top_col1:
+                    # Compact Single-line Layout
+                    c1, c2, c3, c4 = st.columns([2.5, 2, 1, 1])
+                    
+                    with c1:
                         st.markdown(f"**{row['Ημερομηνία']}** | `{row['Κατηγορία']}`")
                         if row["Περιγραφή"]: st.caption(f"📝 {row['Περιγραφή']}")
-                    with top_col2:
+                    
+                    with c2:
                         color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
                         st.markdown(f"<h4 style='text-align: right; color: {color}; margin:0;'>{row['Ποσό']:.2f} €</h4>", unsafe_allow_html=True)
 
-                    btn_col1, btn_col2, _ = st.columns([1, 1, 4])
-                    with btn_col1:
+                    with c3:
                         with st.popover("✏️"):
-                            st.write(f"**Επεξεργασία (Γραμμή {int(idx)+2})**")
+                            st.write(f"**Επεξεργασία**")
                             edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
                             edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
                             edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
@@ -358,18 +388,18 @@ if check_password():
                                 rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
                                 worksheet.update(f"A{row_to_edit}:G{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state, current_user]])
                                 st.cache_data.clear()
-                                st.success("Η εγγραφή ενημερώθηκε!")
+                                st.success("Ενημερώθηκε!")
                                 st.rerun()
 
-                    with btn_col2:
+                    with c4:
                         with st.popover("🗑️"):
-                            st.write("⚠️ **Επιβεβαίωση Διαγραφής;**")
-                            st.caption(f"{row['Ημερομηνία']} | {row['Κατηγορία']} | {row['Ποσό']}€")
-                            if st.button("Ναι, Διαγραφή!", key=f"confirm_del_{idx}", type="primary"):
+                            st.write("⚠️ **Διαγραφή;**")
+                            st.caption(f"{row['Ημερομηνία']} | {row['Ποσό']}€")
+                            if st.button("Ναι!", key=f"confirm_del_{idx}", type="primary"):
                                 row_to_delete = int(idx) + 2
                                 worksheet.delete_rows(row_to_delete)
                                 st.cache_data.clear()
-                                st.success("Η εγγραφή διαγράφηκε!")
+                                st.success("Διαγράφηκε!")
                                 st.rerun()
         else:
             st.info("Δεν υπάρχουν εγγραφές για προβολή.")
@@ -390,7 +420,7 @@ if check_password():
     # -------------------------------------------------------------------
     # ENOTHTA 2: ΝΕΑ ΚΑΤΑΧΩΡΗΣΗ
     # -------------------------------------------------------------------
-    elif st.session_state["active_nav"] == "➕ Καταχώρηση":
+    elif st.session_state["active_nav"] == "➕":
         col_left, col_right = st.columns([1, 1])
 
         with col_left:
@@ -482,7 +512,7 @@ if check_password():
     # -------------------------------------------------------------------
     # ENOTHTA 3: ΡΥΘΜΙΣΕΙΣ & ΠΡΟΦΙΛ
     # -------------------------------------------------------------------
-    elif st.session_state["active_nav"] == "⚙️ Προφίλ":
+    elif st.session_state["active_nav"] == "⚙️":
         st.subheader("🎨 Εμφάνιση")
         new_theme = st.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"], index=0 if theme == "Dark Mode 🌙" else 1, horizontal=True)
         if new_theme != theme:
@@ -525,31 +555,34 @@ if check_password():
                         else: st.error("❌ Ο τρέχων κωδικός είναι λανθασμένος.")
                     except Exception: st.error("❌ Σφάλμα κατά την ενημέρωση.")
 
-    # --- STICKY BOTTOM NAVIGATION BAR ---
+    # --- TRUE STICKY BOTTOM NAVIGATION BAR (ONLY ICONS) ---
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     
-    nav_col1, nav_col2, nav_col3 = st.columns(3)
-    
-    with nav_col1:
-        if st.button("📊\nDashboard", use_container_width=True, key="btn_nav_dash"):
-            st.session_state["active_nav"] = "📊 Dashboard"
-            st.rerun()
-            
-    with nav_col2:
-        if st.button("➕\nΚαταχώρηση", use_container_width=True, key="btn_nav_add"):
-            st.session_state["active_nav"] = "➕ Καταχώρηση"
-            st.rerun()
-            
-    with nav_col3:
-        if st.button("⚙️\nΠροφίλ", use_container_width=True, key="btn_nav_prof"):
-            st.session_state["active_nav"] = "⚙️ Προφίλ"
-            st.rerun()
+    with st.container():
+        st.markdown('<div data-element-id="sticky_nav">', unsafe_allow_html=True)
+        nav_col1, nav_col2, nav_col3 = st.columns(3)
+        
+        with nav_col1:
+            if st.button("📊", use_container_width=True, key="btn_nav_dash"):
+                st.session_state["active_nav"] = "📊"
+                st.rerun()
+                
+        with nav_col2:
+            if st.button("➕", use_container_width=True, key="btn_nav_add"):
+                st.session_state["active_nav"] = "➕"
+                st.rerun()
+                
+        with nav_col3:
+            if st.button("⚙️", use_container_width=True, key="btn_nav_prof"):
+                st.session_state["active_nav"] = "⚙️"
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # --- FOOTER ---
     st.markdown("<br><hr>", unsafe_allow_html=True)
     st.markdown(
         """
-        <div style="text-align: center; color: #888888; font-size: 13px;">
+        <div style="text-align: center; color: #888888; font-size: 12px; margin-bottom: 50px;">
             💻 <b>Personal Finance Tracker PRO</b> | Designed & Developed by <b>Σπύρος Βοϊκόπουλος</b> <br>
             ⚡ Powered by Streamlit & Google Sheets API
         </div>
