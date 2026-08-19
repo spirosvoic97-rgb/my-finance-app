@@ -77,6 +77,27 @@ if check_password():
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
     plotly_theme = "plotly_dark" if theme == "Dark Mode 🌙" else "plotly_white"
 
+    # Dynamic CSS Injection για 100% Light Mode
+    if theme == "Light Mode ☀️":
+        st.markdown(
+            """
+            <style>
+            .stApp, [data-testid="stSidebar"] {
+                background-color: #FFFFFF !important;
+                color: #111111 !important;
+            }
+            h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
+                color: #111111 !important;
+            }
+            input, select, textarea, div[role="combobox"] {
+                background-color: #F0F2F6 !important;
+                color: #111111 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
     st.sidebar.markdown("---")
     st.sidebar.header("🔍 Φίλτρα Προβολής")
     if not df.empty and "Ημερομηνία" in df.columns:
@@ -194,7 +215,7 @@ if check_password():
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
 
-    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ (ΚΛΕΙΔΩΜΕΝΟ ZOOM) ---
+    # --- LINE CHART: ΜΗΝΙΑΙΑ ΤΑΣΗ ---
     st.subheader("📈 Μηνιαία Τάση Εσόδων, Εξόδων & Καθαρού Υπολοίπου")
     if not df.empty:
         trend_df = df.copy()
