@@ -182,7 +182,7 @@ if check_password():
     else:
         selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
 
-    # Theme & CSS Override για να ΜΗΝ σπάνε οι στήλες στα κινητά
+    # Theme & CSS Override
     theme = st.session_state.get("theme", "Dark Mode 🌙")
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
@@ -203,36 +203,19 @@ if check_password():
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
 
-    # CSS Injection για Sticky Bottom Bar & Compact Cards
+    # CSS Injection για ultra-compact inline buttons
     st.markdown("""
         <style>
-        /* Force Horizontal Layout for Columns on Mobile */
-        [data-testid="column"] {
-            min-width: 0px !important;
+        /* Μείωση περιθωρίων στα popovers για να χωράνε στη σειρά */
+        div[data-testid="stPopover"] {
+            display: inline-block !important;
+            margin: 0 !important;
         }
-        
-        /* Sticky Fixed Bottom Navigation Bar */
-        .fixed-bottom-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background-color: #11151C;
-            border-top: 1px solid #222222;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 999999;
-            padding: 5px 10px;
-        }
-        
-        .fixed-bottom-bar button {
-            background: none !important;
-            border: none !important;
-            font-size: 24px !important;
-            color: #FFFFFF !important;
-            cursor: pointer;
+        div[data-testid="stPopover"] > button {
+            padding: 2px 8px !important;
+            height: 28px !important;
+            min-height: 28px !important;
+            font-size: 12px !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -333,59 +316,84 @@ if check_password():
             else:
                 st.info("Δεν υπάρχουν έξοδα.")
 
-        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ (ULTRA COMPACT SINGLE ROW & LATEST FIRST) ---
+        # Line Chart
+        st.subheader("📈 Μηνιαία Τάση")
+        if not df.empty:
+            trend_df = df.copy()
+            trend_df["dt"] = pd.to_datetime(trend_df["Ημερομηνία"], errors="coerce")
+            trend_df = trend_df.dropna(subset=["dt"])
+            trend_df["Sort_Key"] = trend_df["dt"].dt.strftime("%Y-%m")
+            trend_df["Μήνας"] = trend_df["dt"].dt.strftime("%b %Y")
+            
+            monthly_summary = trend_df.groupby(["Sort_Key", "Μήνας", "Τύπος"])["Ποσό"].sum().reset_index()
+            if not monthly_summary.empty:
+                pivot_df = monthly_summary.pivot(index=["Sort_Key", "Μήνας"], columns="Τύπος", values="Ποσό").fillna(0.0).reset_index()
+                if "Έσοδο" not in pivot_df.columns: pivot_df["Έσοδο"] = 0.0
+                if "Έξοδο" not in pivot_df.columns: pivot_df["Έξοδο"] = 0.0
+                pivot_df["Καθαρό (Net)"] = pivot_df["Έσοδο"] - pivot_df["Έξοδο"]
+                pivot_df = pivot_df.sort_values("Sort_Key")
+
+                fig_line = go.Figure()
+                fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έσοδο"], mode='lines+markers', name='Έσοδο', line=dict(color='#00CC96', width=3)))
+                fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Έξοδο"], mode='lines+markers', name='Έξοδο', line=dict(color='#EF553B', width=3)))
+                fig_line.add_trace(go.Scatter(x=pivot_df["Μήνας"], y=pivot_df["Καθαρό (Net)"], mode='lines+markers', name='Καθαρό (Net)', line=dict(color='#AB63FA', width=2, dash='dash')))
+
+                fig_line.update_xaxes(type='category', fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
+                fig_line.update_yaxes(fixedrange=True, color=chart_font_color, gridcolor=chart_grid_color)
+                fig_line.update_layout(height=300, template=plotly_template, paper_bgcolor=chart_bg, plot_bgcolor=chart_bg, font=dict(color=chart_font_color), legend=dict(font=dict(color=chart_font_color)))
+                st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
+
+        st.markdown("---")
+
+        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ (ULTRA COMPACT SINGLE LINE WITH ACTIONS) ---
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
             sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False)
             
             for idx, row in sorted_history.iterrows():
                 amt_color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
-                desc_txt = f" - {row['Περιγραφή']}" if row['Περιγραφή'] else ""
+                desc_txt = f" ({row['Περιγραφή']})" if row['Περιγραφή'] else ""
                 
-                # HTML Single Line Card για τέλεια εξοικονόμηση χώρου στο κινητό
-                st.markdown(
-                    f"""
-                    <div style="background-color: {card_bg}; padding: 8px 12px; border-radius: 8px; margin-bottom: 6px; border: 1px solid #2A2F3D; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <span style="font-weight: bold; font-size: 13px;">{row['Ημερομηνία']}</span> 
-                            <span style="color: #888888; font-size: 12px;">| {row['Κατηγορία']}{desc_txt}</span>
-                        </div>
-                        <div style="font-weight: bold; font-size: 15px; color: {amt_color};">
-                            {row['Ποσό']:.2f} €
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                # Container με 3 στοιχεία στην ίδια σειρά
+                with st.container():
+                    col_info, col_actions, col_amt = st.columns([4, 2, 2])
+                    
+                    with col_info:
+                        st.markdown(f"**{row['Ημερομηνία']}** <span style='color:#888888; font-size:12px;'>{row['Κατηγορία']}{desc_txt}</span>", unsafe_allow_html=True)
+                        
+                    with col_actions:
+                        act1, act2 = st.columns(2)
+                        with act1:
+                            with st.popover("✏️"):
+                                st.write("Επεξεργασία")
+                                edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
+                                edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
+                                edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
+                                cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
+                                cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
+                                edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
+                                edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
+
+                                if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
+                                    row_to_edit = int(idx) + 2
+                                    rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
+                                    worksheet.update(f"A{row_to_edit}:G{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state, current_user]])
+                                    st.cache_data.clear()
+                                    st.rerun()
+
+                        with act2:
+                            with st.popover("🗑️"):
+                                st.write("Διαγραφή;")
+                                if st.button("Ναι!", key=f"confirm_del_{idx}", type="primary"):
+                                    row_to_delete = int(idx) + 2
+                                    worksheet.delete_rows(row_to_delete)
+                                    st.cache_data.clear()
+                                    st.rerun()
+
+                    with col_amt:
+                        st.markdown(f"<div style='text-align: right; font-weight: bold; font-size: 15px; color: {amt_color};'>{row['Ποσό']:.2f} €</div>", unsafe_allow_html=True)
                 
-                # Actions popover σε μία μικρή γραμμή
-                btn_col1, btn_col2, _ = st.columns([1, 1, 6])
-                with btn_col1:
-                    with st.popover("✏️"):
-                        st.write("Επεξεργασία")
-                        edit_date = st.date_input("Ημερομηνία", pd.to_datetime(row["Ημερομηνία"]), key=f"edit_date_{idx}")
-                        edit_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], index=0 if row["Τύπος"] == "Έσοδο" else 1, key=f"edit_type_{idx}")
-                        edit_desc = st.text_input("Περιγραφή", value=row["Περιγραφή"], key=f"edit_desc_{idx}")
-                        cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
-                        cat_index = cats.index(row["Κατηγορία"]) if row["Κατηγορία"] in cats else 0
-                        edit_cat = st.selectbox("Κατηγορία", cats, index=cat_index, key=f"edit_cat_{idx}")
-                        edit_amount = st.number_input("Ποσό (€)", value=float(row["Ποσό"]), min_value=0.0, format="%.2f", key=f"edit_amt_{idx}")
-
-                        if st.button("Ενημέρωση", key=f"save_edit_{idx}"):
-                            row_to_edit = int(idx) + 2
-                            rec_state = row["Επαναλαμβανόμενο"] if "Επαναλαμβανόμενο" in row else "Όχι"
-                            worksheet.update(f"A{row_to_edit}:G{row_to_edit}", [[str(edit_date), edit_desc, edit_type, edit_cat, edit_amount, rec_state, current_user]])
-                            st.cache_data.clear()
-                            st.rerun()
-
-                with btn_col2:
-                    with st.popover("🗑️"):
-                        st.write("Διαγραφή;")
-                        if st.button("Ναι!", key=f"confirm_del_{idx}", type="primary"):
-                            row_to_delete = int(idx) + 2
-                            worksheet.delete_rows(row_to_delete)
-                            st.cache_data.clear()
-                            st.rerun()
+                st.markdown("<hr style='margin: 4px 0; border-color: #222222;'>", unsafe_allow_html=True)
         else:
             st.info("Δεν υπάρχουν εγγραφές.")
 
@@ -543,7 +551,7 @@ if check_password():
     st.markdown("<br><hr>", unsafe_allow_html=True)
     st.markdown(
         """
-        <div style="text-align: center; color: #888888; font-size: 12px; margin-bottom: 50px;">
+        <div style="text-align: center; color: #888888; font-size: 12px; margin-bottom: 20px;">
             💻 <b>Personal Finance Tracker PRO</b> | Designed & Developed by <b>Σπύρος Βοϊκόπουλος</b> <br>
             ⚡ Powered by Streamlit & Google Sheets API
         </div>
