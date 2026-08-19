@@ -10,6 +10,7 @@ import datetime
 import calendar
 import re
 import hashlib
+import json
 from PIL import Image
 
 # 1. Favicon στο Tab του Browser
@@ -53,8 +54,8 @@ except gspread.exceptions.WorksheetNotFound:
 try:
     users_sheet = sh.worksheet("Users")
 except gspread.exceptions.WorksheetNotFound:
-    users_sheet = sh.add_worksheet(title="Users", rows="100", cols="3")
-    users_sheet.append_row(["Username", "PasswordHash", "CreatedAt"])
+    users_sheet = sh.add_worksheet(title="Users", rows="100", cols="5")
+    users_sheet.append_row(["Username", "PasswordHash", "CreatedAt", "Email", "StartingBalance"])
 
 # --- AUTHENTICATION SYSTEM ---
 def check_password():
@@ -77,11 +78,15 @@ def check_password():
                             secrets_valid = True
 
                     sheet_valid = False
+                    user_email = ""
+                    user_starting_bal = 0.00
                     try:
                         users_data = users_sheet.get_all_records()
                         for u in users_data:
                             if str(u.get("Username")) == username and check_hash(password, str(u.get("PasswordHash"))):
                                 sheet_valid = True
+                                user_email = str(u.get("Email", ""))
+                                user_starting_bal = float(u.get("StartingBalance", 0.00)) if u.get("StartingBalance") != "" else 0.00
                                 break
                     except Exception:
                         pass
@@ -89,6 +94,8 @@ def check_password():
                     if secrets_valid or sheet_valid:
                         st.session_state["authenticated"] = True
                         st.session_state["current_user"] = username
+                        st.session_state["user_email"] = user_email
+                        st.session_state["starting_balance"] = user_starting_bal
                         st.session_state["theme"] = "Dark Mode 🌙"
                         st.session_state["active_nav"] = "📊"
                         st.success("✅ Επιτυχής σύνδεση!")
@@ -100,6 +107,8 @@ def check_password():
             col1, col2 = st.columns([1, 2])
             with col1:
                 new_username = st.text_input("Νέο Όνομα Χρήστη", key="signup_user")
+                new_email = st.text_input("Email (Προαιρετικό)", key="signup_email")
+                init_bal = st.number_input("Αρχικό Ταμείο (€)", value=0.00, step=50.00, key="signup_init_bal")
                 new_password = st.text_input("Νέος Κωδικός", type="password", key="signup_pass")
                 confirm_password = st.text_input("Επιβεβαίωση Κωδικού", type="password", key="signup_confirm")
                 
@@ -123,14 +132,15 @@ def check_password():
                         else:
                             pass_hash = make_hash(new_password)
                             created_at = str(datetime.date.today())
-                            users_sheet.append_row([new_username, pass_hash, created_at])
+                            users_sheet.append_row([new_username, pass_hash, created_at, new_email, float(init_bal)])
                             st.success("🎉 Ο λογαριασμός δημιουργήθηκε επιτυχώς! Μπορείς τώρα να συνδεθείς.")
         return False
     return True
 
 if check_password():
     current_user = st.session_state.get("current_user", "Guest")
-    STARTING_BALANCE = 0.00
+    user_email = st.session_state.get("user_email", "")
+    STARTING_BALANCE = st.session_state.get("starting_balance", 0.00)
 
     # Διάβασμα δεδομένων
     try:
@@ -232,7 +242,7 @@ if check_password():
         st.markdown(
             f"""
             <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: center; border: 1px solid #333333;">
-                <div style="font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">Συνολικό Υπόλοιπο</div>
+                <div style="font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">Συνολικό Υπόλοιπο (Αρχικό: {STARTING_BALANCE:.2f} €)</div>
                 <div style="font-size: 34px; font-weight: bold; margin: 2px 0; color: {chart_font_color};">{final_balance:,.2f} €</div>
                 <div style="font-size: 12px; margin-top: 6px; display: flex; justify-content: space-around;">
                     <span style="color: #00CC96;">🟢 {total_income:,.2f} €</span>
@@ -246,6 +256,28 @@ if check_password():
 
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
+
+        # --- ΜΗΝΙΑΙΑ ΣΥΓΚΡΙΣΗ (COMPARISON WITH PREVIOUS MONTH) ---
+        if not df.empty:
+            df['dt_temp'] = pd.to_datetime(df['Ημερομηνία'], errors='coerce')
+            curr_m = now.month
+            curr_y = now.year
+            prev_m = 12 if curr_m == 1 else curr_m - 1
+            prev_y = curr_y - 1 if curr_m == 1 else curr_y
+
+            curr_m_income = df[(df['dt_temp'].dt.month == curr_m) & (df['dt_temp'].dt.year == curr_y) & (df['Τύπος'] == 'Έσοδο')]['Ποσό'].sum()
+            curr_m_exp = df[(df['dt_temp'].dt.month == curr_m) & (df['dt_temp'].dt.year == curr_y) & (df['Τύπος'] == 'Έξοδο')]['Ποσό'].sum()
+
+            prev_m_income = df[(df['dt_temp'].dt.month == prev_m) & (df['dt_temp'].dt.year == prev_y) & (df['Τύπος'] == 'Έσοδο')]['Ποσό'].sum()
+            prev_m_exp = df[(df['dt_temp'].dt.month == prev_m) & (df['dt_temp'].dt.year == prev_y) & (df['Τύπος'] == 'Έξοδο')]['Ποσό'].sum()
+
+            inc_change = ((curr_m_income - prev_m_income) / prev_m_income * 100) if prev_m_income > 0 else 0.0
+            exp_change = ((curr_m_exp - prev_m_exp) / prev_m_exp * 100) if prev_m_exp > 0 else 0.0
+
+            with st.expander("📊 Σύγκριση με Προηγούμενο Μήνα"):
+                m_col1, m_col2 = st.columns(2)
+                m_col1.metric("Έσοδα Μήνα", f"{curr_m_income:.2f} €", delta=f"{inc_change:+.1f}% vs προηγ. μήνα")
+                m_col2.metric("Έξοδα Μήνα", f"{curr_m_exp:.2f} €", delta=f"{exp_change:+.1f}% vs προηγ. μήνα", delta_color="inverse")
 
         # Charts
         chart_col1, chart_col2 = st.columns([3, 2])
@@ -516,40 +548,94 @@ if check_password():
             st.rerun()
 
         st.markdown("---")
-        st.subheader("⚙️ Όρια Προϋπολογισμού")
-        col_b1, col_b2, col_b3 = st.columns(3)
-        with col_b1: limit_fun = st.number_input("Διασκέδαση / Έξοδος (€)", value=300.0, step=50.0, key="lim_fun")
-        with col_b2: limit_sm = st.number_input("Super Market (€)", value=200.0, step=50.0, key="lim_sm")
-        with col_b3: limit_hobby = st.number_input("Προσωπικά / Χόμπι (€)", value=150.0, step=50.0, key="lim_hobby")
+        st.subheader("💰 Αρχικό Ταμείο")
+        new_start_bal = st.number_input("Ορισμός Αρχικού Υπολοίπου (€)", value=float(STARTING_BALANCE), step=50.00, key="set_start_bal")
+        if st.button("Ενημέρωση Αρχικού Ταμείου"):
+            try:
+                users_data = users_sheet.get_all_records()
+                user_row_idx = None
+                for idx, u in enumerate(users_data):
+                    if str(u.get("Username")) == current_user:
+                        user_row_idx = idx + 2
+                        break
+                if user_row_idx:
+                    users_sheet.update_cell(user_row_idx, 5, new_start_bal)
+                    st.session_state["starting_balance"] = new_start_bal
+                    st.success("✅ Το Αρχικό Ταμείο ενημερώθηκε επιτυχώς!")
+                    st.rerun()
+            except Exception:
+                st.error("❌ Σφάλμα κατά την ενημέρωση.")
 
-        BUDGET_LIMITS = {"Διασκέδαση / Έξοδος": limit_fun, "Super Market": limit_sm, "Προσωπικά / Χόμπι": limit_hobby}
+        st.markdown("---")
+        st.subheader("💾 Backup / Restore Δεδομένων (JSON)")
+        col_j1, col_p2 = st.columns(2)
+        with col_j1:
+            if not df.empty:
+                json_str = df.to_json(orient="records", force_ascii=False)
+                st.download_button(
+                    label="📥 Download JSON Backup",
+                    data=json_str,
+                    file_name=f"finance_backup_{current_user}.json",
+                    mime="application/json"
+                )
+        with col_p2:
+            uploaded_json = st.file_uploader("Εισαγωγή JSON Backup", type=["json"], key="json_restore")
+            if uploaded_json is not None:
+                if st.button("🔄 Επαναφορά Δεδομένων"):
+                    try:
+                        restore_data = json.load(uploaded_json)
+                        for item in restore_data:
+                            worksheet.append_row([
+                                str(item.get("Ημερομηνία")),
+                                str(item.get("Περιγραφή", "")),
+                                str(item.get("Τύπος")),
+                                str(item.get("Κατηγορία")),
+                                float(item.get("Ποσό", 0.0)),
+                                str(item.get("Επαναλαμβανόμενο", "Όχι")),
+                                current_user
+                            ], value_input_option="USER_ENTERED")
+                        st.cache_data.clear()
+                        st.success("🎉 Τα δεδομένα επαναφέρθηκαν επιτυχώς!")
+                        st.rerun()
+                    except Exception:
+                        st.error("❌ Σφάλμα κατά την ανάγνωση του αρχείου JSON.")
 
         st.markdown("---")
         st.subheader("🔑 Ασφάλεια Λογαριασμού")
         col_p1, col_p2 = st.columns([1, 2])
         with col_p1:
+            email_val = st.text_input("Email Ειδοποιήσεων", value=user_email, key="p_email")
             curr_pass = st.text_input("Τρέχων Κωδικός", type="password", key="p_curr")
             new_pass = st.text_input("Νέος Κωδικός", type="password", key="p_new")
             conf_pass = st.text_input("Επιβεβαίωση Νέου Κωδικού", type="password", key="p_conf")
             
-            if st.button("Ενημέρωση Κωδικού", key="p_btn"):
-                if not curr_pass or not new_pass: st.warning("⚠️ Συμπλήρωσε όλα τα πεδία.")
-                elif new_pass != conf_pass: st.error("❌ Οι νέοι κωδικοί δεν ταιριάζουν!")
-                elif len(new_pass) < 4: st.warning("⚠️ Ο νέος κωδικός πρέπει να έχει τουλάχιστον 4 χαρακτήρες.")
-                else:
-                    try:
-                        users_data = users_sheet.get_all_records()
-                        user_row_idx = None
-                        for idx, u in enumerate(users_data):
-                            if str(u.get("Username")) == current_user and check_hash(curr_pass, str(u.get("PasswordHash"))):
-                                user_row_idx = idx + 2
-                                break
-                        if user_row_idx:
-                            new_hash = make_hash(new_pass)
-                            users_sheet.update_cell(user_row_idx, 2, new_hash)
-                            st.success("✅ Ο κωδικός άλλαξε επιτυχώς!")
-                        else: st.error("❌ Ο τρέχων κωδικός είναι λανθασμένος.")
-                    except Exception: st.error("❌ Σφάλμα κατά την ενημέρωση.")
+            if st.button("Ενημέρωση Προφίλ", key="p_btn"):
+                try:
+                    users_data = users_sheet.get_all_records()
+                    user_row_idx = None
+                    for idx, u in enumerate(users_data):
+                        if str(u.get("Username")) == current_user:
+                            user_row_idx = idx + 2
+                            break
+                    if user_row_idx:
+                        if email_val != user_email:
+                            users_sheet.update_cell(user_row_idx, 4, email_val)
+                            st.session_state["user_email"] = email_val
+                            st.success("✅ Το email ενημερώθηκε!")
+                        
+                        if new_pass:
+                            if not check_hash(curr_pass, str(users_data[user_row_idx-2].get("PasswordHash"))):
+                                st.error("❌ Ο τρέχων κωδικός είναι λανθασμένος.")
+                            elif new_pass != conf_pass:
+                                st.error("❌ Οι νέοι κωδικοί δεν ταιριάζουν!")
+                            elif len(new_pass) < 4:
+                                st.warning("⚠️ Ο νέος κωδικός πρέπει να έχει τουλάχιστον 4 χαρακτήρες.")
+                            else:
+                                new_hash = make_hash(new_pass)
+                                users_sheet.update_cell(user_row_idx, 2, new_hash)
+                                st.success("✅ Ο κωδικός άλλαξε επιτυχώς!")
+                except Exception:
+                    st.error("❌ Σφάλμα κατά την ενημέρωση.")
 
     # --- FOOTER ---
     st.markdown("<br><hr>", unsafe_allow_html=True)
