@@ -182,7 +182,7 @@ if check_password():
     else:
         selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
 
-    # Theme & CSS Override
+    # Theme CSS Injection
     theme = st.session_state.get("theme", "Dark Mode 🌙")
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
@@ -203,25 +203,13 @@ if check_password():
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
 
-    # CSS Injection για ultra-compact inline buttons
+    # CSS Injection για Ultra-compact Popovers
     st.markdown("""
         <style>
-        /* Μείωση περιθωρίων στα popovers για να χωράνε στη σειρά */
-        div[data-testid="stPopover"] {
-            display: inline-block !important;
-            margin: 0 !important;
-        }
-        div[data-testid="stPopover"] > button {
-            padding: 2px 8px !important;
-            height: 28px !important;
-            min-height: 28px !important;
-            font-size: 12px !important;
-        }
+        div[data-testid="stPopover"] { display: inline-block !important; margin: 0 !important; }
+        div[data-testid="stPopover"] > button { padding: 2px 8px !important; height: 28px !important; min-height: 28px !important; font-size: 12px !important; }
         </style>
     """, unsafe_allow_html=True)
-
-    if "active_nav" not in st.session_state:
-        st.session_state["active_nav"] = "📊"
 
     # TOP TABS / NAVIGATION
     nav_selected = st.radio("Navigation", ["📊 Dashboard", "➕ Καταχώρηση", "⚙️ Προφίλ"], horizontal=True, label_visibility="collapsed")
@@ -255,7 +243,7 @@ if check_password():
         days_remaining = (days_in_month - now.day) + 1
         safe_to_spend_daily = (final_balance / days_remaining) if final_balance > 0 and days_remaining > 0 else 0.0
 
-        # --- TRADING 212 STYLE HEADER ---
+        # TRADING 212 HEADER
         st.markdown(
             f"""
             <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: center; border: 1px solid #333333;">
@@ -274,7 +262,7 @@ if check_password():
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
 
-        # Charts Row
+        # Charts
         chart_col1, chart_col2 = st.columns([3, 2])
 
         with chart_col1:
@@ -345,16 +333,33 @@ if check_password():
 
         st.markdown("---")
 
-        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ (ULTRA COMPACT SINGLE LINE WITH ACTIONS) ---
+        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ ΜΕ PAGINATION (10 ΕΓΓΡΑΦΕΣ / ΣΕΛΙΔΑ) ---
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
-            sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False)
+            sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False).reset_index(drop=True)
             
-            for idx, row in sorted_history.iterrows():
+            # Pagination Settings
+            items_per_page = 10
+            total_items = len(sorted_history)
+            total_pages = (total_items - 1) // items_per_page + 1
+
+            if "history_page" not in st.session_state:
+                st.session_state["history_page"] = 1
+
+            current_page = st.session_state["history_page"]
+            if current_page > total_pages:
+                current_page = total_pages
+                st.session_state["history_page"] = total_pages
+
+            start_idx = (current_page - 1) * items_per_page
+            end_idx = start_idx + items_per_page
+            page_items = sorted_history.iloc[start_idx:end_idx]
+
+            # Εμφάνιση εγγραφών τρέχουσας σελίδας
+            for idx, row in page_items.iterrows():
                 amt_color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
                 desc_txt = f" ({row['Περιγραφή']})" if row['Περιγραφή'] else ""
                 
-                # Container με 3 στοιχεία στην ίδια σειρά
                 with st.container():
                     col_info, col_actions, col_amt = st.columns([4, 2, 2])
                     
@@ -394,6 +399,22 @@ if check_password():
                         st.markdown(f"<div style='text-align: right; font-weight: bold; font-size: 15px; color: {amt_color};'>{row['Ποσό']:.2f} €</div>", unsafe_allow_html=True)
                 
                 st.markdown("<hr style='margin: 4px 0; border-color: #222222;'>", unsafe_allow_html=True)
+
+            # PAGINATION CONTROLS
+            p_col1, p_col2, p_col3 = st.columns([1, 2, 1])
+            with p_col1:
+                if current_page > 1:
+                    if st.button("⬅️ Προηγούμενη", key="prev_page"):
+                        st.session_state["history_page"] -= 1
+                        st.rerun()
+            with p_col2:
+                st.markdown(f"<div style='text-align: center; color: #888888; font-size: 13px;'>Σελίδα <b>{current_page}</b> από <b>{total_pages}</b> ({total_items} εγγραφές)</div>", unsafe_allow_html=True)
+            with p_col3:
+                if current_page < total_pages:
+                    if st.button("Επόμενη ➡️", key="next_page"):
+                        st.session_state["history_page"] += 1
+                        st.rerun()
+
         else:
             st.info("Δεν υπάρχουν εγγραφές.")
 
