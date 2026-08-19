@@ -9,11 +9,12 @@ from io import BytesIO
 import datetime
 import calendar
 import re
+import hashlib
 from PIL import Image
 
 st.set_page_config(page_title="Personal Finance Tracker PRO", page_icon="💰", layout="wide")
 
-# --- PWA HEAD INJECTION (Εγκατάσταση ως App σε Android / iOS) ---
+# --- PWA HEAD INJECTION ---
 st.markdown(
     """
     <head>
@@ -35,52 +36,123 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- LOGIN AUTHENTICATION ---
+# --- HELPER: HASH PASSWORD ---
+def make_hash(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
+
+def check_hash(password, hashed_text):
+    if make_hash(password) == hashed_text:
+        return True
+    return False
+
+# --- GOOGLE SHEETS AUTHENTICATION & SETUP ---
+creds_dict = dict(st.secrets["connections"]["gsheets"])
+decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
+creds_dict["private_key"] = decoded_key.replace("\\n", "\n")
+del creds_dict["private_key_base64"]
+
+scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+gc = gspread.authorize(credentials)
+
+try:
+    sh = gc.open("Finance Tracker Data")
+except gspread.exceptions.SpreadsheetNotFound:
+    sh = gc.create("Finance Tracker Data")
+
+# 1o Φύλλο: Δεδομένα
+try:
+    worksheet = sh.worksheet("Data")
+except gspread.exceptions.WorksheetNotFound:
+    worksheet = sh.get_worksheet(0)
+    worksheet.update_title("Data")
+    worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο"])
+
+# 2ο Φύλλο: Χρήστες
+try:
+    users_sheet = sh.worksheet("Users")
+except gspread.exceptions.WorksheetNotFound:
+    users_sheet = sh.add_worksheet(title="Users", rows="100", cols="3")
+    users_sheet.append_row(["Username", "PasswordHash", "CreatedAt"])
+
+# --- LOGIN & SIGNUP AUTHENTICATION SYSTEM ---
 def check_password():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
 
     if not st.session_state["authenticated"]:
         st.title("🔒 Πρόσβαση στην Εφαρμογή")
-        col1, col2 = st.columns([1, 2])
-        with col1:
-            username = st.text_input("Χρήστης")
-            password = st.text_input("Κωδικός", type="password")
-            if st.button("Σύνδεση"):
-                if "passwords" in st.secrets and username in st.secrets["passwords"]:
-                    if password == st.secrets["passwords"][username]:
+        
+        tab_login, tab_signup = st.tabs(["🔑 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη"])
+        
+        # TAB 1: Σύνδεση
+        with tab_login:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                username = st.text_input("Χρήστης", key="login_user")
+                password = st.text_input("Κωδικός", type="password", key="login_pass")
+                if st.button("Σύνδεση", key="login_btn"):
+                    # 1. Έλεγχος στα secrets
+                    secrets_valid = False
+                    if "passwords" in st.secrets and username in st.secrets["passwords"]:
+                        if password == st.secrets["passwords"][username]:
+                            secrets_valid = True
+
+                    # 2. Έλεγχος στο φύλλο Users
+                    sheet_valid = False
+                    try:
+                        users_data = users_sheet.get_all_records()
+                        for u in users_data:
+                            if str(u.get("Username")) == username and check_hash(password, str(u.get("PasswordHash"))):
+                                sheet_valid = True
+                                break
+                    except Exception:
+                        pass
+
+                    if secrets_valid or sheet_valid:
                         st.session_state["authenticated"] = True
+                        st.session_state["current_user"] = username
+                        st.success("✅ Επιτυχής σύνδεση!")
                         st.rerun()
                     else:
-                        st.error("❌ Λάθος κωδικός πρόσβασης")
-                else:
-                    st.error("❌ Λάθος όνομα χρήστη")
+                        st.error("❌ Λάθος όνομα χρήστη ή κωδικός πρόσβασης")
+                        
+        # TAB 2: Εγγραφή Νέου Χρήστη
+        with tab_signup:
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                new_username = st.text_input("Νέο Όνομα Χρήστη", key="signup_user")
+                new_password = st.text_input("Νέος Κωδικός", type="password", key="signup_pass")
+                confirm_password = st.text_input("Επιβεβαίωση Κωδικού", type="password", key="signup_confirm")
+                
+                if st.button("Δημιουργία Λογαριασμού", key="signup_btn"):
+                    if not new_username or not new_password:
+                        st.warning("⚠️ Παρακαλώ συμπλήρωσε όλα τα πεδία.")
+                    elif new_password != confirm_password:
+                        st.error("❌ Οι κωδικοί πρόσβασης δεν ταιριάζουν!")
+                    elif len(new_password) < 4:
+                        st.warning("⚠️ Ο κωδικός πρέπει να έχει τουλάχιστον 4 χαρακτήρες.")
+                    else:
+                        # Έλεγχος αν υπάρχει ήδη το username
+                        existing_users = []
+                        try:
+                            users_data = users_sheet.get_all_records()
+                            existing_users = [str(u.get("Username")).lower() for u in users_data]
+                        except Exception:
+                            pass
+
+                        if new_username.lower() in existing_users:
+                            st.error("❌ Το όνομα χρήστη υπάρχει ήδη! Διάλεξε άλλο.")
+                        else:
+                            pass_hash = make_hash(new_password)
+                            created_at = str(datetime.date.today())
+                            users_sheet.append_row([new_username, pass_hash, created_at])
+                            st.success("🎉 Ο λογαριασμός δημιουργήθηκε επιτυχώς! Μπορείς τώρα να συνδεθείς.")
         return False
     return True
 
 if check_password():
     STARTING_BALANCE = 672.776
-
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
-
-    # Αποκωδικοποίηση Base64 key
-    decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
-    creds_dict["private_key"] = decoded_key.replace("\\n", "\n")
-    del creds_dict["private_key_base64"]
-
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    gc = gspread.authorize(credentials)
-    
-    # Σύνδεση με το Google Sheet
-    try:
-        sh = gc.open("Finance Tracker Data")
-    except gspread.exceptions.SpreadsheetNotFound:
-        sh = gc.create("Finance Tracker Data")
-        worksheet = sh.get_worksheet(0)
-        worksheet.append_row(["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο"])
-
-    worksheet = sh.get_worksheet(0)
 
     # Διάβασμα δεδομένων
     try:
@@ -102,6 +174,13 @@ if check_password():
     st.sidebar.header("🎨 Εμφάνιση")
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
     
+    if "current_user" in st.session_state:
+        st.sidebar.caption(f"👤 Συνδεδεμένος ως: **{st.session_state['current_user']}**")
+        if st.sidebar.button("🚪 Αποσύνδεση"):
+            st.session_state["authenticated"] = False
+            st.session_state["current_user"] = ""
+            st.rerun()
+
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
         chart_bg = "#FFFFFF"
