@@ -75,10 +75,13 @@ if check_password():
     # --- SIDEBAR: Φίλτρα & Theme ---
     st.sidebar.header("🎨 Εμφάνιση")
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
-    plotly_theme = "plotly_dark" if theme == "Dark Mode 🌙" else "plotly_white"
-
-    # Dynamic CSS Injection για 100% Light Mode
+    
+    # Ρυθμίσεις για τα γραφήματα Plotly
     if theme == "Light Mode ☀️":
+        plotly_template = "plotly_white"
+        chart_bg = "#FFFFFF"
+        chart_font_color = "#111111"
+        # Dynamic CSS Injection για 100% Light Mode (Σελίδα, Κουμπιά & Popovers)
         st.markdown(
             """
             <style>
@@ -93,10 +96,24 @@ if check_password():
                 background-color: #F0F2F6 !important;
                 color: #111111 !important;
             }
+            /* Κουμπιά Popovers (✏️ & 🗑️) & Download Button */
+            button[aria-haspopup="dialog"], .stDownloadButton > button {
+                background-color: #FFFFFF !important;
+                color: #111111 !important;
+                border: 1px solid #111111 !important;
+            }
+            button[aria-haspopup="dialog"]:hover, .stDownloadButton > button:hover {
+                background-color: #F0F2F6 !important;
+                border: 1px solid #000000 !important;
+            }
             </style>
             """,
             unsafe_allow_html=True
         )
+    else:
+        plotly_template = "plotly_dark"
+        chart_bg = "#11151C"
+        chart_font_color = "#FFFFFF"
 
     st.sidebar.markdown("---")
     st.sidebar.header("🔍 Φίλτρα Προβολής")
@@ -196,7 +213,10 @@ if check_password():
             fig_waterfall.update_layout(
                 title="Ανάλυση Ταμειακών Ροών", 
                 showlegend=False, 
-                template=plotly_theme, 
+                template=plotly_template, 
+                paper_bgcolor=chart_bg,
+                plot_bgcolor=chart_bg,
+                font=dict(color=chart_font_color),
                 height=400,
                 xaxis=dict(fixedrange=True),
                 yaxis=dict(fixedrange=True)
@@ -209,8 +229,15 @@ if check_password():
         st.subheader("🍕 Κατανομή Εξόδων")
         if not filtered_df.empty and total_expenses > 0:
             exp_df = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]
-            fig_pie = px.pie(exp_df, values="Ποσό", names="Κατηγορία", hole=0.4, template=plotly_theme)
-            fig_pie.update_layout(height=400, xaxis=dict(fixedrange=True), yaxis=dict(fixedrange=True))
+            fig_pie = px.pie(exp_df, values="Ποσό", names="Κατηγορία", hole=0.4, template=plotly_template)
+            fig_pie.update_layout(
+                height=400, 
+                paper_bgcolor=chart_bg,
+                plot_bgcolor=chart_bg,
+                font=dict(color=chart_font_color),
+                xaxis=dict(fixedrange=True), 
+                yaxis=dict(fixedrange=True)
+            )
             st.plotly_chart(fig_pie, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
         else:
             st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
@@ -241,7 +268,15 @@ if check_password():
 
             fig_line.update_xaxes(type='category', fixedrange=True)
             fig_line.update_yaxes(fixedrange=True)
-            fig_line.update_layout(height=380, template=plotly_theme, xaxis_title="Μήνας", yaxis_title="Ποσό (€)")
+            fig_line.update_layout(
+                height=380, 
+                template=plotly_template, 
+                paper_bgcolor=chart_bg,
+                plot_bgcolor=chart_bg,
+                font=dict(color=chart_font_color),
+                xaxis_title="Μήνας", 
+                yaxis_title="Ποσό (€)"
+            )
             st.plotly_chart(fig_line, use_container_width=True, config={'scrollZoom': False, 'displayModeBar': False})
     st.markdown("---")
 
