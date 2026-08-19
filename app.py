@@ -175,20 +175,22 @@ if check_password():
         st.sidebar.image(uploaded_receipt, caption="Απόδειξη", use_container_width=True)
         
         try:
+            img = Image.open(uploaded_receipt).convert('L')
+            
             import pytesseract
-            img = Image.open(uploaded_receipt)
-            extracted_text = pytesseract.image_to_string(img, lang='ell+eng')
+            extracted_text = pytesseract.image_to_string(img, lang='ell+eng', config='--psm 6')
             
             amounts = re.findall(r'\b\d+[\.,]\d{2}\b', extracted_text)
             if amounts:
-                clean_amounts = [float(a.replace(',', '.')) for a in amounts]
-                scanned_amount = max(clean_amounts)
+                clean_amounts = [float(a.replace(',', '.')) for a in amounts if float(a.replace(',', '.')) < 2000]
+                if clean_amounts:
+                    scanned_amount = max(clean_amounts)
             
             text_lower = extracted_text.lower()
             if any(w in text_lower for w in ["μασούτης", "σκλαβενίτης", "lidl", "αβ", "super"]):
                 scanned_desc = "Super Market"
                 scanned_category = "Super Market"
-            elif any(w in text_lower for w in ["bp", "shell", "eko", "diesel", "βενζίνη", "καύσιμα"]):
+            elif any(w in text_lower for w in ["bp", "shell", "eko", "diesel", "βενζίνη", "καύσιμα", "πρατήριο"]):
                 scanned_desc = "Πρατήριο Καυσίμων"
                 scanned_category = "Μετακινήσεις"
             else:
@@ -203,9 +205,9 @@ if check_password():
                 scanned_desc = "Νέα Απόδειξη"
                 scanned_category = "Super Market"
 
-        st.sidebar.markdown("**🔍 Επιβεβαίωση Σάρωσης:**")
+        st.sidebar.markdown("**🔍 Επιβεβαίωση / Διόρθωση Σάρωσης:**")
         scanned_amount = st.sidebar.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_confirm")
-        scanned_desc = st.sidebar.text_input("Περιγραφή", value=scanned_desc, key="scan_desc_confirm")
+        scanned_desc = st.sidebar.text_input("Περιγραφή", value=scanned_desc if scanned_desc else "Απόδειξη", key="scan_desc_confirm")
         scanned_category = st.sidebar.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(scanned_category) if scanned_category in EXPENSE_CATEGORIES else 0, key="scan_cat_confirm")
 
         if st.sidebar.button("📥 Άμεση Καταχώρηση Απόδειξης"):
