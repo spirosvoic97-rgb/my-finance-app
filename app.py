@@ -76,7 +76,7 @@ if check_password():
     st.sidebar.header("🎨 Εμφάνιση")
     theme = st.sidebar.radio("Θέμα Εμφάνισης", ["Dark Mode 🌙", "Light Mode ☀️"])
     
-    # Ρυθμίσεις χρωμάτων για τα γραφήματα Plotly & CSS
+    # Ρυθμίσεις χρωμάτων για τα γραφήματα Plotly
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
         chart_bg = "#FFFFFF"
@@ -93,11 +93,15 @@ if check_password():
                 color: #111111 !important;
             }
             
-            /* Εικονίδια & Κείμενα στο πάνω δεξιά Toolbar (Share, Star, Pencil, GitHub) */
-            [data-testid="stHeader"] *, [data-testid="stAppToolbar"] *, header * {
+            /* Διόρθωση Toolbar Icons (Share, Star, Pencil, Github) με Invert Filter */
+            [data-testid="stHeader"] img, [data-testid="stAppToolbar"] img, 
+            [data-testid="stHeader"] svg, [data-testid="stAppToolbar"] svg,
+            header svg, button[kind="header"] svg {
+                filter: invert(1) !important;
+            }
+            [data-testid="stHeader"] button, [data-testid="stAppToolbar"] button {
                 color: #111111 !important;
-                fill: #111111 !important;
-                stroke: #111111 !important;
+                background-color: #FFFFFF !important;
             }
             
             /* Κείμενα, Headers & Metrics */
@@ -105,12 +109,44 @@ if check_password():
                 color: #111111 !important;
             }
             
-            /* Inputs, Selectboxes & Τα βέλη τους */
-            input, select, textarea, div[role="combobox"], [data-baseweb="select"] * {
+            /* Selectboxes & Down Arrows */
+            input, select, textarea, div[role="combobox"], [data-baseweb="select"] {
+                background-color: #FFFFFF !important;
+                color: #111111 !important;
+                border: 1px solid #111111 !important;
+                border-radius: 6px !important;
+            }
+            [data-baseweb="select"] * {
                 background-color: #FFFFFF !important;
                 color: #111111 !important;
             }
             [data-baseweb="select"] svg {
+                fill: #111111 !important;
+            }
+            
+            /* Number Input Κουμπιά (+ και -) */
+            [data-testid="stNumberInput"] button {
+                background-color: #FFFFFF !important;
+                color: #111111 !important;
+                border: 1px solid #111111 !important;
+            }
+            [data-testid="stNumberInput"] button * {
+                color: #111111 !important;
+                fill: #111111 !important;
+            }
+            
+            /* Expander ("Ρύθμιση Ορίων ανά Κατηγορία") */
+            [data-testid="stExpander"] {
+                background-color: #FFFFFF !important;
+                border: 1px solid #111111 !important;
+                border-radius: 6px !important;
+            }
+            [data-testid="stExpander"] details, [data-testid="stExpander"] summary {
+                background-color: #FFFFFF !important;
+                color: #111111 !important;
+            }
+            [data-testid="stExpander"] summary * {
+                color: #111111 !important;
                 fill: #111111 !important;
             }
             
