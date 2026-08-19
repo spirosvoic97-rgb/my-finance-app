@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 import gspread
 from google.oauth2.service_account import Credentials
 import base64
@@ -36,7 +37,7 @@ if check_password():
 
     creds_dict = dict(st.secrets["connections"]["gsheets"])
 
-    # Αποκωδικοποίηση του Base64 private key
+    # Αποκωδικοποίηση Base64 key
     decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
     creds_dict["private_key"] = decoded_key.replace("\\n", "\n")
     del creds_dict["private_key_base64"]
@@ -60,7 +61,6 @@ if check_password():
         data = worksheet.get_all_records()
         df = pd.DataFrame(data)
         if not df.empty and "Ημερομηνία" in df.columns:
-            # Μετατροπή Ημερομηνίας & Ποσού
             df["Ημερομηνία"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
             df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0.0)
             df = df.dropna(subset=["Ημερομηνία"])
@@ -78,7 +78,7 @@ if check_password():
 
     st.title("📊 Financial Dashboard & Waterfall Tracker PRO")
 
-    # Sidebar: Φίλτρα & Καταχώρηση
+    # --- SIDEBAR: Φίλτρα & Καταχώρηση ---
     st.sidebar.header("🔍 Φίλτρα Προβολής")
     if not df.empty and "Ημερομηνία" in df.columns:
         temp_years = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.year.dropna().astype(int).unique()
@@ -97,16 +97,28 @@ if check_password():
     amount = st.sidebar.number_input("Ποσό (€)", min_value=0.0, format="%.2f")
 
     if st.sidebar.button("Αποθήκευση"):
-        # 1. Προσθήκη στο Google Sheet
         worksheet.append_row([str(date), description, entry_type, category, float(amount)], value_input_option="USER_ENTERED")
-        
-        # 2. Καθαρισμός cache
         st.cache_data.clear()
-        
-        st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς στο Google Sheet!")
+        st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
         st.rerun()
 
-    # Φιλτράρισμα Δεδομένων
+    # --- SIDEBAR: Διαγραφή Εγγραφής ---
+    st.sidebar.markdown("---")
+    st.sidebar.header("🗑️ Διαγραφή Εγγραφής")
+    if not df.empty:
+        # Δημιουργία λίστας επιλογής με δείκτη σειράς
+        options = [f"Γραμμή {i+2}: {row['Ημερομηνία']} | {row['Κατηγορία']} | {row['Ποσό']}€" for i, row in df.iterrows()]
+        selected_option = st.sidebar.selectbox("Επίλεξε εγγραφή για διαγραφή", options)
+        
+        if st.sidebar.button("Διαγραφή Selected"):
+            # Υπολογισμός σειράς στο Google Sheet (row_index = index + 2 λόγω επικεφαλίδας)
+            row_to_delete = int(selected_option.split(":")[0].replace("Γραμμή ", ""))
+            worksheet.delete_rows(row_to_delete)
+            st.cache_data.clear()
+            st.sidebar.success(f"Η εγγραφή στη γραμμή {row_to_delete} διαγράφηκε!")
+            st.rerun()
+
+    # --- ΦΙΛΤΡΑΡΙΣΜΑ ΔΕΔΟΜΕΝΩΝ ---
     filtered_df = df.copy()
     if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
         temp_dates = pd.to_datetime(filtered_df["Ημερομηνία"], errors="coerce")
@@ -124,43 +136,59 @@ if check_password():
     overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
     final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
-    col1, col2, col3, col4 = st.columns(4)
+    # --- DASHBOARD METRICS ---
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     col1.metric("Αρχικό Ταμείο", f"{STARTING_BALANCE:.2f} €")
     col2.metric("Επιλεγμένα Έσοδα", f"{total_income:.2f} €")
     col3.metric("Επιλεγμένα Έξοδα", f"{total_expenses:.2f} €")
-    col4.metric("Συνολικό Υπόλοιπο (Balance)", f"{final_balance:.2f} €")
+    col4.metric("Συνολικό Υπόλοιπο", f"{final_balance:.2f} €")
 
     st.markdown("---")
 
-    # Ειδοποιήσεις Προϋπολογισμού (Alerts)
+    # --- ALERTS ---
     if not filtered_df.empty:
         exp_by_cat = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
         for cat, limit in BUDGET_LIMITS.items():
             if cat in exp_by_cat and exp_by_cat[cat] > limit:
                 st.warning(f"⚠️ **Υπέρβαση Ορίου:** Τα έξοδα στην κατηγορία **{cat}** έφτασαν τα **{exp_by_cat[cat]:.2f} €** (Όριο: {limit:.2f} €)!")
 
-    # Waterfall Chart
-    st.subheader("🌊 Waterfall Analysis")
-    if not filtered_df.empty:
-        expense_by_cat = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
-        x_list = ["INCOME"] + list(expense_by_cat.index) + ["BALANCE"]
-        y_list = [total_income] + list(-expense_by_cat.values) + [0]
-        measure_list = ["relative"] + ["relative"] * len(expense_by_cat) + ["total"]
+    # --- GRAPHICAL CHARTS (WATERFALL + PIE CHART) ---
+    chart_col1, chart_col2 = st.columns([3, 2])
 
-        fig = go.Figure(go.Waterfall(
-            name="Cashflow", orientation="v",
-            measure=measure_list, x=x_list, textposition="outside",
-            text=[f"{val:.2f}" if val != 0 else f"{net_month:.2f}" for val in y_list[:-1]] + [f"{net_month:.2f}"],
-            y=y_list,
-            connector={"line": {"color": "rgb(63, 63, 63)"}},
-            decreasing={"marker": {"color": "#EF553B"}},
-            increasing={"marker": {"color": "#636EFA"}},
-            totals={"marker": {"color": "#7F7F7F"}}
-        ))
-        fig.update_layout(title="Ανάλυση Εσόδων - Εξόδων", showlegend=False, template="plotly_dark")
-        st.plotly_chart(fig, use_container_width=True)
+    with chart_col1:
+        st.subheader("🌊 Waterfall Analysis")
+        if not filtered_df.empty and total_income + total_expenses > 0:
+            expense_by_cat = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum()
+            x_list = ["INCOME"] + list(expense_by_cat.index) + ["BALANCE"]
+            y_list = [total_income] + list(-expense_by_cat.values) + [0]
+            measure_list = ["relative"] + ["relative"] * len(expense_by_cat) + ["total"]
 
-    # Table & Download
+            fig_waterfall = go.Figure(go.Waterfall(
+                name="Cashflow", orientation="v",
+                measure=measure_list, x=x_list, textposition="outside",
+                text=[f"{val:.2f}" if val != 0 else f"{net_month:.2f}" for val in y_list[:-1]] + [f"{net_month:.2f}"],
+                y=y_list,
+                connector={"line": {"color": "rgb(63, 63, 63)"}},
+                decreasing={"marker": {"color": "#EF553B"}},
+                increasing={"marker": {"color": "#636EFA"}},
+                totals={"marker": {"color": "#7F7F7F"}}
+            ))
+            fig_waterfall.update_layout(title="Ανάλυση Ταμειακών Ροών", showlegend=False, template="plotly_dark", height=400)
+            st.plotly_chart(fig_waterfall, use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν δεδομένα για την εμφάνιση του Waterfall Chart.")
+
+    with chart_col2:
+        st.subheader("🍕 Κατανομή Εξόδων")
+        if not filtered_df.empty and total_expenses > 0:
+            exp_df = filtered_df[filtered_df["Τύπος"] == "Έξοδο"]
+            fig_pie = px.pie(exp_df, values="Ποσό", names="Κατηγορία", hole=0.4, template="plotly_dark")
+            fig_pie.update_layout(height=400)
+            st.plotly_chart(fig_pie, use_container_width=True)
+        else:
+            st.info("Δεν υπάρχουν έξοδα στη συγκεκριμένη περίοδο.")
+
+    # --- TABLE & DOWNLOAD ---
     st.subheader("📋 Ιστορικό Εγγραφών")
     st.dataframe(filtered_df, use_container_width=True)
     
