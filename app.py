@@ -102,22 +102,6 @@ if check_password():
         st.sidebar.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
         st.rerun()
 
-    # --- SIDEBAR: Διαγραφή Εγγραφής ---
-    st.sidebar.markdown("---")
-    st.sidebar.header("🗑️ Διαγραφή Εγγραφής")
-    if not df.empty:
-        # Δημιουργία λίστας επιλογής με δείκτη σειράς
-        options = [f"Γραμμή {i+2}: {row['Ημερομηνία']} | {row['Κατηγορία']} | {row['Ποσό']}€" for i, row in df.iterrows()]
-        selected_option = st.sidebar.selectbox("Επίλεξε εγγραφή για διαγραφή", options)
-        
-        if st.sidebar.button("Διαγραφή Selected"):
-            # Υπολογισμός σειράς στο Google Sheet (row_index = index + 2 λόγω επικεφαλίδας)
-            row_to_delete = int(selected_option.split(":")[0].replace("Γραμμή ", ""))
-            worksheet.delete_rows(row_to_delete)
-            st.cache_data.clear()
-            st.sidebar.success(f"Η εγγραφή στη γραμμή {row_to_delete} διαγράφηκε!")
-            st.rerun()
-
     # --- ΦΙΛΤΡΑΡΙΣΜΑ ΔΕΔΟΜΕΝΩΝ ---
     filtered_df = df.copy()
     if not filtered_df.empty and "Ημερομηνία" in filtered_df.columns:
@@ -190,7 +174,38 @@ if check_password():
 
     # --- TABLE & DOWNLOAD ---
     st.subheader("📋 Ιστορικό Εγγραφών")
-    st.dataframe(filtered_df, use_container_width=True)
+    if not filtered_df.empty:
+        # Επικεφαλίδες Πίνακα
+        hcol1, hcol2, hcol3, hcol4, hcol5, hcol6 = st.columns([1.5, 2.5, 1.2, 2.2, 1.2, 0.8])
+        hcol1.markdown("**Ημερομηνία**")
+        hcol2.markdown("**Περιγραφή**")
+        hcol3.markdown("**Τύπος**")
+        hcol4.markdown("**Κατηγορία**")
+        hcol5.markdown("**Ποσό (€)**")
+        hcol6.markdown("**Ενέργεια**")
+        st.markdown("---")
+
+        # Εμφάνιση κάθε εγγραφής σε ξεχωριστή γραμμή με κουμπί διαγραφής
+        for idx, row in filtered_df.iterrows():
+            rcol1, rcol2, rcol3, rcol4, rcol5, rcol6 = st.columns([1.5, 2.5, 1.2, 2.2, 1.2, 0.8])
+            rcol1.write(str(row["Ημερομηνία"]))
+            rcol2.write(row["Περιγραφή"] if row["Περιγραφή"] else "-")
+            rcol3.write(row["Τύπος"])
+            rcol4.write(row["Κατηγορία"])
+            rcol5.write(f"{row['Ποσό']:.2f} €")
+            
+            # Κουμπί Διαγραφής δίπλα σε κάθε εγγραφή
+            if rcol6.button("🗑️", key=f"del_{idx}"):
+            # Υπολογισμός πραγματικής γραμμής στο Google Sheet
+            row_to_delete = int(idx) + 2
+            worksheet.delete_rows(row_to_delete)
+            st.cache_data.clear()
+            st.success("Η εγγραφή διαγράφηκε!")
+            st.rerun()
+    else:
+        st.info("Δεν υπάρχουν εγγραφές για προβολή.")
+
+    st.markdown("---")
     
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
