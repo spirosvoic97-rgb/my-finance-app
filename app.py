@@ -151,21 +151,18 @@ if check_password():
         if len(raw_rows) > 1:
             header = raw_rows[0]
             clean_rows = [header]
-            has_deleted = False
             
             # Έλεγχος & αφαίρεση διπλότυπων επικεφαλίδων στο Google Sheet
-            for row_idx, row in enumerate(raw_rows[1:], start=2):
+            for row in raw_rows[1:]:
                 if len(row) > 0 and str(row[0]).strip() == "Ημερομηνία":
-                    try:
-                        worksheet.delete_rows(row_idx)
-                        has_deleted = True
-                    except Exception:
-                        pass
-                else:
-                    clean_rows.append(row)
+                    continue
+                clean_rows.append(row)
             
-            # Δημιουργία DataFrame από τις καθαρές εγγραφές
+            # Δημιουργία DataFrame
             df_raw = pd.DataFrame(clean_rows[1:], columns=clean_rows[0])
+            
+            # Αφαίρεση διπλότυπων στηλών αν υπάρχουν
+            df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].copy()
             
             if not df_raw.empty:
                 if "Ποσό" in df_raw.columns:
