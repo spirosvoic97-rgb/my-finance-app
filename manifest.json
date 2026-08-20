@@ -3,7 +3,7 @@
   "name": "Personal Finance Tracker",
   "icons": [
     {
-      "src": "(https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png)",
+      "src": "https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png",
       "type": "image/png",
       "sizes": "512x512"
     }
