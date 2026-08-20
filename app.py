@@ -273,23 +273,35 @@ if check_password():
         # Savings Rate Calculation
         savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0.0
 
-        # TRADING 212 HEADER WITH TOOLTIPS
+        # MAIN BALANCE HEADER WITH INFO POPOVERS
         st.markdown(
             f"""
-            <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: center; border: 1px solid #333333;">
+            <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 10px; text-align: center; border: 1px solid #333333;">
                 <div style="font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">
                     Συνολικό Υπόλοιπο (Αρχικό: {STARTING_BALANCE:.2f} €)
                 </div>
                 <div style="font-size: 34px; font-weight: bold; margin: 2px 0; color: {chart_font_color};">{final_balance:,.2f} €</div>
-                <div style="font-size: 12px; margin-top: 6px; display: flex; justify-content: space-around;">
-                    <span style="color: #00CC96;">🟢 {total_income:,.2f} €</span>
-                    <span style="color: #EF553B;">🔴 {total_expenses:,.2f} €</span>
-                    <span style="color: #AB63FA;">💡 {safe_to_spend_daily:,.2f} €/ημ</span>
-                </div>
             </div>
             """,
             unsafe_allow_html=True
         )
+
+        # TOOLTIP / INFO BAR FOR HEADER METRICS
+        h_info1, h_info2, h_info3 = st.columns([1, 1, 1])
+        with h_info1:
+            st.markdown(f"<div style='text-align: center; font-size: 13px; color: #00CC96;'>🟢 <b>{total_income:,.2f} €</b></div>", unsafe_allow_html=True)
+        with h_info2:
+            st.markdown(f"<div style='text-align: center; font-size: 13px; color: #EF553B;'>🔴 <b>{total_expenses:,.2f} €</b></div>", unsafe_allow_html=True)
+        with h_info3:
+            s_head, s_pop = st.columns([3, 1])
+            with s_head:
+                st.markdown(f"<div style='text-align: right; font-size: 13px; color: #AB63FA;'>💡 <b>{safe_to_spend_daily:,.2f} €/ημ</b></div>", unsafe_allow_html=True)
+            with s_pop:
+                with st.popover("ℹ️"):
+                    st.write("**Τύπος Safe-to-Spend:** `Συνολικό Υπόλοιπο / Ημέρες που απομένουν`")
+                    st.write("Σου δείχνει το ανώτατο ημερήσιο όριο εξόδων ώστε να μην μηδενίσει το ταμείο σου μέχρι το τέλος του μήνα.")
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
