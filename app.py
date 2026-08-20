@@ -202,7 +202,7 @@ if check_password():
     selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     search_query = st.sidebar.text_input("🔎 Αναζήτηση Περιγραφής", "")
 
-    # Theme CSS Injection
+    # Theme CSS Injection & HIDE STREAMLIT HEADER/FOOTER
     theme = st.session_state.get("theme", "Dark Mode 🌙")
     if theme == "Light Mode ☀️":
         plotly_template = "plotly_white"
@@ -210,6 +210,8 @@ if check_password():
         card_bg = "#F8F9FA"
         st.markdown("""
             <style>
+            header[data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
+            footer { visibility: hidden !important; }
             .stApp, [data-testid="stSidebar"], [data-testid="stHeader"], [data-testid="stAppToolbar"], header { background-color: #FFFFFF !important; color: #111111 !important; }
             [data-testid="stHeader"] img, [data-testid="stAppToolbar"] img, [data-testid="stHeader"] svg, [data-testid="stAppToolbar"] svg, header svg, button[kind="header"] svg { filter: invert(1) !important; }
             h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] { color: #111111 !important; }
@@ -222,6 +224,12 @@ if check_password():
         plotly_template = "plotly_dark"
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
+        st.markdown("""
+            <style>
+            header[data-testid="stHeader"] { visibility: hidden !important; height: 0px !important; }
+            footer { visibility: hidden !important; }
+            </style>
+        """, unsafe_allow_html=True)
 
     # CSS Injection για Ultra-compact Popovers & Rows
     st.markdown("""
