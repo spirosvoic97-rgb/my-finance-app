@@ -145,26 +145,40 @@ if check_password():
     user_email = st.session_state.get("user_email", "")
     STARTING_BALANCE = st.session_state.get("starting_balance", 0.00)
 
-    # --- CLEAN & RELIABLE DATA LOADING ---
+    # --- AUTO-CLEANUP & BULLETPROOF DATA LOADING ---
     try:
-        data = worksheet.get_all_records()
-        df_raw = pd.DataFrame(data)
-        if not df_raw.empty:
-            # Αφαίρεση τυχόν διπλότυπων επικεφαλίδων
-            if "Ημερομηνία" in df_raw.columns:
-                df_raw = df_raw[df_raw["Ημερομηνία"].astype(str).str.strip() != "Ημερομηνία"].copy()
+        raw_rows = worksheet.get_all_values()
+        if len(raw_rows) > 1:
+            header = raw_rows[0]
+            clean_rows = [header]
+            has_deleted = False
             
-            # Μετατροπή Ποσού
-            if "Ποσό" in df_raw.columns:
-                df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
+            # Έλεγχος & αφαίρεση διπλότυπων επικεφαλίδων στο Google Sheet
+            for row_idx, row in enumerate(raw_rows[1:], start=2):
+                if len(row) > 0 and str(row[0]).strip() == "Ημερομηνία":
+                    try:
+                        worksheet.delete_rows(row_idx)
+                        has_deleted = True
+                    except Exception:
+                        pass
+                else:
+                    clean_rows.append(row)
             
-            # Φιλτράρισμα βάσει Username (αν υπάρχει)
-            if "Username" in df_raw.columns:
-                df_raw["Username_clean"] = df_raw["Username"].astype(str).str.strip().str.lower()
-                user_match = df_raw[df_raw["Username_clean"] == current_user.lower()].copy()
-                df = user_match if not user_match.empty else df_raw.copy()
+            # Δημιουργία DataFrame από τις καθαρές εγγραφές
+            df_raw = pd.DataFrame(clean_rows[1:], columns=clean_rows[0])
+            
+            if not df_raw.empty:
+                if "Ποσό" in df_raw.columns:
+                    df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
+                
+                if "Username" in df_raw.columns:
+                    df_raw["Username_clean"] = df_raw["Username"].astype(str).str.strip().str.lower()
+                    user_match = df_raw[df_raw["Username_clean"] == current_user.lower()].copy()
+                    df = user_match if not user_match.empty else df_raw.copy()
+                else:
+                    df = df_raw.copy()
             else:
-                df = df_raw.copy()
+                df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
         else:
             df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
     except Exception:
@@ -183,7 +197,6 @@ if check_password():
     st.sidebar.markdown("---")
     st.sidebar.header("🔍 Φίλτρα Προβολής")
     
-    # Πάντα διαθέσιμα επιλογικά φίλτρα
     dt_series = pd.to_datetime(df["Ημερομηνία"], errors="coerce") if not df.empty and "Ημερομηνία" in df.columns else pd.Series(dtype='datetime64[ns]')
     valid_years = dt_series.dt.year.dropna().astype(int).unique() if not dt_series.empty else []
     years = sorted(list(valid_years), reverse=True)
