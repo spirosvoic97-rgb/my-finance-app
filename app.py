@@ -273,11 +273,13 @@ if check_password():
         # Savings Rate Calculation
         savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0.0
 
-        # TRADING 212 HEADER
+        # TRADING 212 HEADER WITH TOOLTIPS
         st.markdown(
             f"""
             <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 15px; text-align: center; border: 1px solid #333333;">
-                <div style="font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">Συνολικό Υπόλοιπο (Αρχικό: {STARTING_BALANCE:.2f} €)</div>
+                <div style="font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">
+                    Συνολικό Υπόλοιπο (Αρχικό: {STARTING_BALANCE:.2f} €)
+                </div>
                 <div style="font-size: 34px; font-weight: bold; margin: 2px 0; color: {chart_font_color};">{final_balance:,.2f} €</div>
                 <div style="font-size: 12px; margin-top: 6px; display: flex; justify-content: space-around;">
                     <span style="color: #00CC96;">🟢 {total_income:,.2f} €</span>
@@ -292,29 +294,28 @@ if check_password():
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
 
-        # --- ΝΕΕΣ ΚΑΡΤΕΣ ΑΝΑΛΥΣΗΣ: SAVINGS RATE & DAILY BURN RATE ---
+        # --- ΝΕΕΣ ΚΑΡΤΕΣ ΑΝΑΛΥΣΗΣ ΜΕ ΕΠΕΞΗΓΗΜΑΤΙΚΑ TOOLTIPS (INFO POPOVERS) ---
         a_col1, a_col2 = st.columns(2)
         with a_col1:
             save_color = "#00CC96" if savings_rate >= 20 else ("#FFA500" if savings_rate >= 0 else "#EF553B")
-            st.markdown(
-                f"""
-                <div style="background-color: {card_bg}; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #333333;">
-                    <div style="font-size: 10px; color: #888888; text-transform: uppercase;">📊 Δείκτης Αποταμίευσης</div>
-                    <div style="font-size: 20px; font-weight: bold; color: {save_color};">{savings_rate:.1f}%</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            c1_head, c1_info = st.columns([4, 1])
+            with c1_head:
+                st.markdown(f"<div style='font-size: 11px; color: #888888; text-transform: uppercase;'>📊 Δείκτης Αποταμίευσης</div>", unsafe_allow_html=True)
+            with c1_info:
+                with st.popover("ℹ️"):
+                    st.write("**Τύπος:** `((Έσοδα - Έξοδο) / Έσοδα) × 100`")
+                    st.write("Δείχνει ποιο ποσοστό από τα συνολικά σου έσοδα καταφέρνεις να κρατάς στην άκρη.")
+            st.markdown(f"<div style='font-size: 22px; font-weight: bold; color: {save_color}; text-align: center;'>{savings_rate:.1f}%</div>", unsafe_allow_html=True)
+
         with a_col2:
-            st.markdown(
-                f"""
-                <div style="background-color: {card_bg}; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #333333;">
-                    <div style="font-size: 10px; color: #888888; text-transform: uppercase;">🔥 Ημερήσιο Έξοδο (Burn Rate)</div>
-                    <div style="font-size: 20px; font-weight: bold; color: #EF553B;">{daily_burn_rate:.2f} € /ημ</div>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+            c2_head, c2_info = st.columns([4, 1])
+            with c2_head:
+                st.markdown(f"<div style='font-size: 11px; color: #888888; text-transform: uppercase;'>🔥 Ημερήσιο Έξοδο (Burn)</div>", unsafe_allow_html=True)
+            with c2_info:
+                with st.popover("ℹ️"):
+                    st.write("**Τύπος:** `Έξοδα Μήνα / Ημέρες που πέρασαν`")
+                    st.write("Ο μέσος όρος των χρημάτων που ξοδεύεις κάθε μέρα μέσα στον τρέχοντα μήνα.")
+            st.markdown(f"<div style='font-size: 22px; font-weight: bold; color: #EF553B; text-align: center;'>{daily_burn_rate:.2f} € /ημ</div>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -340,7 +341,7 @@ if check_password():
                 m_col1.metric("Έσοδα Μήνα", f"{curr_m_income:.2f} €", delta=f"{inc_change:+.1f}% vs προηγ. μήνα")
                 m_col2.metric("Έξοδα Μήνα", f"{curr_m_exp:.2f} €", delta=f"{exp_change:+.1f}% vs προηγ. μήνα", delta_color="inverse")
 
-        # --- ΝΕΟ PANEL: TOP 3 ΚΑΤΗΓΟΡΙΕΣ ΕΞΟΔΩΝ ---
+        # --- PANEL: TOP 3 ΚΑΤΗΓΟΡΙΕΣ ΕΞΟΔΩΝ ---
         if not filtered_df.empty and total_expenses > 0:
             top_exp = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum().reset_index()
             top_exp = top_exp.sort_values(by="Ποσό", ascending=False).head(3)
