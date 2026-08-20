@@ -83,17 +83,20 @@ def check_password():
                     try:
                         users_data = users_sheet.get_all_records()
                         for u in users_data:
-                            if str(u.get("Username")) == username and check_hash(password, str(u.get("PasswordHash"))):
+                            if str(u.get("Username")).strip() == username.strip() and check_hash(password, str(u.get("PasswordHash"))):
                                 sheet_valid = True
                                 user_email = str(u.get("Email", ""))
-                                user_starting_bal = float(u.get("StartingBalance", 0.00)) if u.get("StartingBalance") != "" else 0.00
+                                try:
+                                    user_starting_bal = float(u.get("StartingBalance", 0.00))
+                                except Exception:
+                                    user_starting_bal = 0.00
                                 break
                     except Exception:
                         pass
 
                     if secrets_valid or sheet_valid:
                         st.session_state["authenticated"] = True
-                        st.session_state["current_user"] = username
+                        st.session_state["current_user"] = username.strip()
                         st.session_state["user_email"] = user_email
                         st.session_state["starting_balance"] = user_starting_bal
                         st.session_state["theme"] = "Dark Mode 🌙"
@@ -123,16 +126,16 @@ def check_password():
                         existing_users = []
                         try:
                             users_data = users_sheet.get_all_records()
-                            existing_users = [str(u.get("Username")).lower() for u in users_data]
+                            existing_users = [str(u.get("Username")).strip().lower() for u in users_data]
                         except Exception:
                             pass
 
-                        if new_username.lower() in existing_users:
+                        if new_username.strip().lower() in existing_users:
                             st.error("❌ Το όνομα χρήστη υπάρχει ήδη! Διάλεξε άλλο.")
                         else:
                             pass_hash = make_hash(new_password)
                             created_at = str(datetime.date.today())
-                            users_sheet.append_row([new_username, pass_hash, created_at, new_email, float(init_bal)])
+                            users_sheet.append_row([new_username.strip(), pass_hash, created_at, new_email, float(init_bal)])
                             st.success("🎉 Ο λογαριασμός δημιουργήθηκε επιτυχώς! Μπορείς τώρα να συνδεθείς.")
         return False
     return True
@@ -142,18 +145,23 @@ if check_password():
     user_email = st.session_state.get("user_email", "")
     STARTING_BALANCE = st.session_state.get("starting_balance", 0.00)
 
-    # Διάβασμα δεδομένων
+    # SAFE DATA READING
     try:
         data = worksheet.get_all_records()
         df_raw = pd.DataFrame(data)
         if not df_raw.empty and "Ημερομηνία" in df_raw.columns:
-            df_raw["Ημερομηνία"] = pd.to_datetime(df_raw["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
+            df_raw["Username"] = df_raw["Username"].astype(str).str.strip()
             df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
+            df_raw["Ημερομηνία"] = pd.to_datetime(df_raw["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
             df_raw = df_raw.dropna(subset=["Ημερομηνία"])
-            df = df_raw[df_raw["Username"] == current_user].copy() if "Username" in df_raw.columns else df_raw.copy()
+            
+            if "Username" in df_raw.columns and not df_raw.empty:
+                df = df_raw[df_raw["Username"].str.lower() == current_user.lower()].copy()
+            else:
+                df = df_raw.copy()
         else:
             df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
-    except Exception:
+    except Exception as e:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
 
     INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
@@ -198,39 +206,11 @@ if check_password():
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
 
-    # CSS Injection για Ultra-compact Mobile Layout & Popovers
+    # CSS Injection για Mobile Popovers & Compact Rows
     st.markdown("""
         <style>
         div[data-testid="stPopover"] { display: inline-block !important; margin: 0 !important; }
         div[data-testid="stPopover"] > button { padding: 1px 5px !important; height: 26px !important; min-height: 26px !important; font-size: 11px !important; line-height: 1 !important; border-radius: 6px !important; }
-        
-        .history-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 6px 0;
-            border-bottom: 1px solid #262c36;
-        }
-        .history-info {
-            flex-grow: 1;
-            font-size: 12px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            padding-right: 6px;
-        }
-        .history-right {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            flex-shrink: 0;
-        }
-        .history-amount {
-            font-weight: bold;
-            font-size: 13px;
-            min-width: 65px;
-            text-align: right;
-        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -285,7 +265,7 @@ if check_password():
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
 
-        # --- ΜΗΝΙΑΙΑ ΣΥΓΚΡΙΣΗ (COMPARISON WITH PREVIOUS MONTH) ---
+        # --- ΜΗΝΙΑΙΑ ΣΥΓΚΡΙΣΗ ---
         if not df.empty:
             df['dt_temp'] = pd.to_datetime(df['Ημερομηνία'], errors='coerce')
             curr_m = now.month
@@ -378,7 +358,7 @@ if check_password():
 
         st.markdown("---")
 
-        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ (ULTRA-COMPACT MOBILE RESPONSIVE LAYOUT) ---
+        # --- ΙΣΤΟΡΙΚΟ ΕΓΓΡΑΦΩΝ ---
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
             sorted_history = filtered_df.sort_values(by="Ημερομηνία", ascending=False).reset_index(drop=True)
@@ -403,7 +383,6 @@ if check_password():
                 amt_color = "#00CC96" if row["Τύπος"] == "Έσοδο" else "#EF553B"
                 desc_txt = f" ({row['Περιγραφή']})" if row['Περιγραφή'] else ""
                 
-                # Οριζόντια Διάταξη: 75% Πληροφορίες + 25% Κουμπιά/Ποσό
                 c_info, c_acts = st.columns([3, 1])
                 
                 with c_info:
@@ -581,7 +560,7 @@ if check_password():
                 users_data = users_sheet.get_all_records()
                 user_row_idx = None
                 for idx, u in enumerate(users_data):
-                    if str(u.get("Username")) == current_user:
+                    if str(u.get("Username")).strip() == current_user:
                         user_row_idx = idx + 2
                         break
                 if user_row_idx:
@@ -640,7 +619,7 @@ if check_password():
                     users_data = users_sheet.get_all_records()
                     user_row_idx = None
                     for idx, u in enumerate(users_data):
-                        if str(u.get("Username")) == current_user:
+                        if str(u.get("Username")).strip() == current_user:
                             user_row_idx = idx + 2
                             break
                     if user_row_idx:
