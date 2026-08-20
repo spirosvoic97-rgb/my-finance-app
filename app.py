@@ -152,16 +152,12 @@ if check_password():
             header = raw_rows[0]
             clean_rows = [header]
             
-            # Έλεγχος & αφαίρεση διπλότυπων επικεφαλίδων στο Google Sheet
             for row in raw_rows[1:]:
                 if len(row) > 0 and str(row[0]).strip() == "Ημερομηνία":
                     continue
                 clean_rows.append(row)
             
-            # Δημιουργία DataFrame
             df_raw = pd.DataFrame(clean_rows[1:], columns=clean_rows[0])
-            
-            # Αφαίρεση διπλότυπων στηλών αν υπάρχουν
             df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].copy()
             
             if not df_raw.empty:
@@ -265,11 +261,17 @@ if check_password():
         overall_expenses = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if not df.empty else 0.0
         final_balance = STARTING_BALANCE + (overall_income - overall_expenses)
 
-        # Safe-to-Spend
+        # Safe-to-Spend & Daily Burn Rate
         now = datetime.date.today()
         days_in_month = calendar.monthrange(now.year, now.month)[1]
         days_remaining = (days_in_month - now.day) + 1
         safe_to_spend_daily = (final_balance / days_remaining) if final_balance > 0 and days_remaining > 0 else 0.0
+        
+        passed_days = now.day
+        daily_burn_rate = (total_expenses / passed_days) if passed_days > 0 else 0.0
+
+        # Savings Rate Calculation
+        savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0.0
 
         # TRADING 212 HEADER
         st.markdown(
@@ -289,6 +291,32 @@ if check_password():
 
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
+
+        # --- ΝΕΕΣ ΚΑΡΤΕΣ ΑΝΑΛΥΣΗΣ: SAVINGS RATE & DAILY BURN RATE ---
+        a_col1, a_col2 = st.columns(2)
+        with a_col1:
+            save_color = "#00CC96" if savings_rate >= 20 else ("#FFA500" if savings_rate >= 0 else "#EF553B")
+            st.markdown(
+                f"""
+                <div style="background-color: {card_bg}; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #333333;">
+                    <div style="font-size: 10px; color: #888888; text-transform: uppercase;">📊 Δείκτης Αποταμίευσης</div>
+                    <div style="font-size: 20px; font-weight: bold; color: {save_color};">{savings_rate:.1f}%</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with a_col2:
+            st.markdown(
+                f"""
+                <div style="background-color: {card_bg}; padding: 10px; border-radius: 10px; text-align: center; border: 1px solid #333333;">
+                    <div style="font-size: 10px; color: #888888; text-transform: uppercase;">🔥 Ημερήσιο Έξοδο (Burn Rate)</div>
+                    <div style="font-size: 20px; font-weight: bold; color: #EF553B;">{daily_burn_rate:.2f} € /ημ</div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         # --- ΜΗΝΙΑΙΑ ΣΥΓΚΡΙΣΗ ---
         if not df.empty:
@@ -311,6 +339,16 @@ if check_password():
                 m_col1, m_col2 = st.columns(2)
                 m_col1.metric("Έσοδα Μήνα", f"{curr_m_income:.2f} €", delta=f"{inc_change:+.1f}% vs προηγ. μήνα")
                 m_col2.metric("Έξοδα Μήνα", f"{curr_m_exp:.2f} €", delta=f"{exp_change:+.1f}% vs προηγ. μήνα", delta_color="inverse")
+
+        # --- ΝΕΟ PANEL: TOP 3 ΚΑΤΗΓΟΡΙΕΣ ΕΞΟΔΩΝ ---
+        if not filtered_df.empty and total_expenses > 0:
+            top_exp = filtered_df[filtered_df["Τύπος"] == "Έξοδο"].groupby("Κατηγορία")["Ποσό"].sum().reset_index()
+            top_exp = top_exp.sort_values(by="Ποσό", ascending=False).head(3)
+            
+            with st.expander("🏆 Top 3 Μεγαλύτερα Έξοδα"):
+                for idx, row in top_exp.iterrows():
+                    pct = (row["Ποσό"] / total_expenses * 100) if total_expenses > 0 else 0.0
+                    st.markdown(f"• **{row['Κατηγορία']}**: `{row['Ποσό']:.2f} €` *({pct:.1f}% των εξόδων)*")
 
         # Charts
         chart_col1, chart_col2 = st.columns([3, 2])
