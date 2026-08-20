@@ -227,11 +227,12 @@ if check_password():
             </style>
         """, unsafe_allow_html=True)
 
-    # CSS Injection για Ultra-compact Popovers & Rows
+    # CSS Injection για Compact History Popovers & Metrics
     st.markdown("""
         <style>
         div[data-testid="stPopover"] { display: inline-block !important; margin: 0 !important; }
         div[data-testid="stPopover"] > button { padding: 1px 5px !important; height: 26px !important; min-height: 26px !important; font-size: 11px !important; line-height: 1 !important; border-radius: 6px !important; }
+        div[data-testid="stMetric"] { background-color: #1A1F2C; border: 1px solid #333333; padding: 10px; border-radius: 10px; text-align: center; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -273,61 +274,41 @@ if check_password():
         # Savings Rate Calculation
         savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0.0
 
-        # MAIN BALANCE HEADER WITH INFO POPOVERS
+        # TRADING 212 HEADER
         st.markdown(
             f"""
-            <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 10px; text-align: center; border: 1px solid #333333;">
+            <div style="background-color: {card_bg}; padding: 15px; border-radius: 12px; margin-bottom: 12px; text-align: center; border: 1px solid #333333;">
                 <div style="font-size: 11px; color: #888888; text-transform: uppercase; letter-spacing: 1px;">
                     Συνολικό Υπόλοιπο (Αρχικό: {STARTING_BALANCE:.2f} €)
                 </div>
                 <div style="font-size: 34px; font-weight: bold; margin: 2px 0; color: {chart_font_color};">{final_balance:,.2f} €</div>
+                <div style="font-size: 12px; margin-top: 6px; display: flex; justify-content: space-around;">
+                    <span style="color: #00CC96;">🟢 {total_income:,.2f} €</span>
+                    <span style="color: #EF553B;">🔴 {total_expenses:,.2f} €</span>
+                    <span style="color: #AB63FA;">💡 {safe_to_spend_daily:,.2f} €/ημ</span>
+                </div>
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        # TOOLTIP / INFO BAR FOR HEADER METRICS
-        h_info1, h_info2, h_info3 = st.columns([1, 1, 1])
-        with h_info1:
-            st.markdown(f"<div style='text-align: center; font-size: 13px; color: #00CC96;'>🟢 <b>{total_income:,.2f} €</b></div>", unsafe_allow_html=True)
-        with h_info2:
-            st.markdown(f"<div style='text-align: center; font-size: 13px; color: #EF553B;'>🔴 <b>{total_expenses:,.2f} €</b></div>", unsafe_allow_html=True)
-        with h_info3:
-            s_head, s_pop = st.columns([3, 1])
-            with s_head:
-                st.markdown(f"<div style='text-align: right; font-size: 13px; color: #AB63FA;'>💡 <b>{safe_to_spend_daily:,.2f} €/ημ</b></div>", unsafe_allow_html=True)
-            with s_pop:
-                with st.popover("ℹ️"):
-                    st.write("**Τύπος Safe-to-Spend:** `Συνολικό Υπόλοιπο / Ημέρες που απομένουν`")
-                    st.write("Σου δείχνει το ανώτατο ημερήσιο όριο εξόδων ώστε να μην μηδενίσει το ταμείο σου μέχρι το τέλος του μήνα.")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
 
-        # --- ΝΕΕΣ ΚΑΡΤΕΣ ΑΝΑΛΥΣΗΣ ΜΕ ΕΠΕΞΗΓΗΜΑΤΙΚΑ TOOLTIPS (INFO POPOVERS) ---
-        a_col1, a_col2 = st.columns(2)
-        with a_col1:
-            save_color = "#00CC96" if savings_rate >= 20 else ("#FFA500" if savings_rate >= 0 else "#EF553B")
-            c1_head, c1_info = st.columns([4, 1])
-            with c1_head:
-                st.markdown(f"<div style='font-size: 11px; color: #888888; text-transform: uppercase;'>📊 Δείκτης Αποταμίευσης</div>", unsafe_allow_html=True)
-            with c1_info:
-                with st.popover("ℹ️"):
-                    st.write("**Τύπος:** `((Έσοδα - Έξοδο) / Έσοδα) × 100`")
-                    st.write("Δείχνει ποιο ποσοστό από τα συνολικά σου έσοδα καταφέρνεις να κρατάς στην άκρη.")
-            st.markdown(f"<div style='font-size: 22px; font-weight: bold; color: {save_color}; text-align: center;'>{savings_rate:.1f}%</div>", unsafe_allow_html=True)
-
-        with a_col2:
-            c2_head, c2_info = st.columns([4, 1])
-            with c2_head:
-                st.markdown(f"<div style='font-size: 11px; color: #888888; text-transform: uppercase;'>🔥 Ημερήσιο Έξοδο (Burn)</div>", unsafe_allow_html=True)
-            with c2_info:
-                with st.popover("ℹ️"):
-                    st.write("**Τύπος:** `Έξοδα Μήνα / Ημέρες που πέρασαν`")
-                    st.write("Ο μέσος όρος των χρημάτων που ξοδεύεις κάθε μέρα μέσα στον τρέχοντα μήνα.")
-            st.markdown(f"<div style='font-size: 22px; font-weight: bold; color: #EF553B; text-align: center;'>{daily_burn_rate:.2f} € /ημ</div>", unsafe_allow_html=True)
+        # --- COMPACT METRICS ΜΕ ΦΥΣΙΚΟ HELP TOOLTIP ---
+        m_col1, m_col2 = st.columns(2)
+        with m_col1:
+            st.metric(
+                label="📊 Δείκτης Αποταμίευσης",
+                value=f"{savings_rate:.1f}%",
+                help="Τύπος: ((Έσοδα - Έξοδα) / Έσοδα) × 100\n\nΔείχνει ποιο ποσοστό των εσόδων σου καταφέρνεις να κρατάς στην άκρη."
+            )
+        with m_col2:
+            st.metric(
+                label="🔥 Ημερήσιο Έξοδο (Burn)",
+                value=f"{daily_burn_rate:.2f} €/ημ",
+                help="Τύπος: Έξοδα Μήνα / Ημέρες που έχουν περάσει\n\nΟ μέσος όρος των χρημάτων που ξοδεύεις καθημερινά στον τρέχοντα μήνα."
+            )
 
         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -349,9 +330,9 @@ if check_password():
             exp_change = ((curr_m_exp - prev_m_exp) / prev_m_exp * 100) if prev_m_exp > 0 else 0.0
 
             with st.expander("📊 Σύγκριση με Προηγούμενο Μήνα"):
-                m_col1, m_col2 = st.columns(2)
-                m_col1.metric("Έσοδα Μήνα", f"{curr_m_income:.2f} €", delta=f"{inc_change:+.1f}% vs προηγ. μήνα")
-                m_col2.metric("Έξοδα Μήνα", f"{curr_m_exp:.2f} €", delta=f"{exp_change:+.1f}% vs προηγ. μήνα", delta_color="inverse")
+                c_m1, c_m2 = st.columns(2)
+                c_m1.metric("Έσοδα Μήνα", f"{curr_m_income:.2f} €", delta=f"{inc_change:+.1f}% vs προηγ. μήνα")
+                c_m2.metric("Έξοδα Μήνα", f"{curr_m_exp:.2f} €", delta=f"{exp_change:+.1f}% vs προηγ. μήνα", delta_color="inverse")
 
         # --- PANEL: TOP 3 ΚΑΤΗΓΟΡΙΕΣ ΕΞΟΔΩΝ ---
         if not filtered_df.empty and total_expenses > 0:
