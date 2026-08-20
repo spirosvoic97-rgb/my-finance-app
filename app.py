@@ -73,8 +73,8 @@ def check_password():
                 password = st.text_input("Κωδικός", type="password", key="login_pass")
                 if st.button("Σύνδεση", key="login_btn"):
                     secrets_valid = False
-                    if "passwords" in st.secrets and username in st.secrets["passwords"]:
-                        if password == st.secrets["passwords"][username]:
+                    if "passwords" in st.secrets and username.strip() in st.secrets["passwords"]:
+                        if password == st.secrets["passwords"][username.strip()]:
                             secrets_valid = True
 
                     sheet_valid = False
@@ -83,7 +83,7 @@ def check_password():
                     try:
                         users_data = users_sheet.get_all_records()
                         for u in users_data:
-                            if str(u.get("Username")).strip() == username.strip() and check_hash(password, str(u.get("PasswordHash"))):
+                            if str(u.get("Username", "")).strip().lower() == username.strip().lower() and check_hash(password, str(u.get("PasswordHash", ""))):
                                 sheet_valid = True
                                 user_email = str(u.get("Email", ""))
                                 try:
@@ -126,7 +126,7 @@ def check_password():
                         existing_users = []
                         try:
                             users_data = users_sheet.get_all_records()
-                            existing_users = [str(u.get("Username")).strip().lower() for u in users_data]
+                            existing_users = [str(u.get("Username", "")).strip().lower() for u in users_data]
                         except Exception:
                             pass
 
@@ -145,23 +145,25 @@ if check_password():
     user_email = st.session_state.get("user_email", "")
     STARTING_BALANCE = st.session_state.get("starting_balance", 0.00)
 
-    # SAFE DATA READING
+    # BULLETPROOF DATA LOADING
     try:
         data = worksheet.get_all_records()
         df_raw = pd.DataFrame(data)
-        if not df_raw.empty and "Ημερομηνία" in df_raw.columns:
-            df_raw["Username"] = df_raw["Username"].astype(str).str.strip()
-            df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
-            df_raw["Ημερομηνία"] = pd.to_datetime(df_raw["Ημερομηνία"], errors="coerce").dt.strftime("%Y-%m-%d")
-            df_raw = df_raw.dropna(subset=["Ημερομηνία"])
-            
-            if "Username" in df_raw.columns and not df_raw.empty:
-                df = df_raw[df_raw["Username"].str.lower() == current_user.lower()].copy()
+        if not df_raw.empty:
+            if "Ποσό" in df_raw.columns:
+                df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
+            if "Username" in df_raw.columns:
+                df_raw["Username_clean"] = df_raw["Username"].astype(str).str.strip().str.lower()
+                user_filtered = df_raw[df_raw["Username_clean"] == current_user.lower()].copy()
+                if not user_filtered.empty:
+                    df = user_filtered
+                else:
+                    df = df_raw.copy()
             else:
                 df = df_raw.copy()
         else:
             df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
-    except Exception as e:
+    except Exception:
         df = pd.DataFrame(columns=["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό", "Επαναλαμβανόμενο", "Username"])
 
     INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
@@ -206,7 +208,7 @@ if check_password():
         chart_bg, chart_font_color, chart_grid_color = "#11151C", "#FFFFFF", "#333333"
         card_bg = "#1A1F2C"
 
-    # CSS Injection για Mobile Popovers & Compact Rows
+    # CSS Injection για Ultra-compact Popovers & Rows
     st.markdown("""
         <style>
         div[data-testid="stPopover"] { display: inline-block !important; margin: 0 !important; }
@@ -560,7 +562,7 @@ if check_password():
                 users_data = users_sheet.get_all_records()
                 user_row_idx = None
                 for idx, u in enumerate(users_data):
-                    if str(u.get("Username")).strip() == current_user:
+                    if str(u.get("Username", "")).strip().lower() == current_user.lower():
                         user_row_idx = idx + 2
                         break
                 if user_row_idx:
@@ -619,7 +621,7 @@ if check_password():
                     users_data = users_sheet.get_all_records()
                     user_row_idx = None
                     for idx, u in enumerate(users_data):
-                        if str(u.get("Username")).strip() == current_user:
+                        if str(u.get("Username", "")).strip().lower() == current_user.lower():
                             user_row_idx = idx + 2
                             break
                     if user_row_idx:
