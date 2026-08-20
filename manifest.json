@@ -1,21 +1,20 @@
 {
   "short_name": "FinancePRO",
-  "name": "Personal Finance Tracker PRO",
+  "name": "Personal Finance Tracker",
   "icons": [
     {
-      "src": "favicon_512.png",
+      "src": "(https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png)",
       "type": "image/png",
       "sizes": "512x512"
     }
   ],
   "start_url": "/",
   "display": "standalone",
-  "theme_color": "#11151c",
-  "background_color": "#11151c",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
   "description": "Personal Finance Management &amp; Budget Tracking App",
-  "id": "https://my-finance-app-hpfbuss32zvcuonbph4wsm.streamlit.app/",
-  "dir": "ltr",
   "scope": "/",
+  "dir": "ltr",
   "lang": "el",
   "orientation": "portrait",
   "categories": [
