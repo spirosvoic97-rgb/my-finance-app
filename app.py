@@ -145,20 +145,24 @@ if check_password():
     user_email = st.session_state.get("user_email", "")
     STARTING_BALANCE = st.session_state.get("starting_balance", 0.00)
 
-    # BULLETPROOF DATA LOADING
+    # --- CLEAN & RELIABLE DATA LOADING ---
     try:
         data = worksheet.get_all_records()
         df_raw = pd.DataFrame(data)
         if not df_raw.empty:
+            # Αφαίρεση τυχόν διπλότυπων επικεφαλίδων
+            if "Ημερομηνία" in df_raw.columns:
+                df_raw = df_raw[df_raw["Ημερομηνία"].astype(str).str.strip() != "Ημερομηνία"].copy()
+            
+            # Μετατροπή Ποσού
             if "Ποσό" in df_raw.columns:
                 df_raw["Ποσό"] = pd.to_numeric(df_raw["Ποσό"], errors="coerce").fillna(0.0)
+            
+            # Φιλτράρισμα βάσει Username (αν υπάρχει)
             if "Username" in df_raw.columns:
                 df_raw["Username_clean"] = df_raw["Username"].astype(str).str.strip().str.lower()
-                user_filtered = df_raw[df_raw["Username_clean"] == current_user.lower()].copy()
-                if not user_filtered.empty:
-                    df = user_filtered
-                else:
-                    df = df_raw.copy()
+                user_match = df_raw[df_raw["Username_clean"] == current_user.lower()].copy()
+                df = user_match if not user_match.empty else df_raw.copy()
             else:
                 df = df_raw.copy()
         else:
@@ -178,14 +182,15 @@ if check_password():
 
     st.sidebar.markdown("---")
     st.sidebar.header("🔍 Φίλτρα Προβολής")
-    if not df.empty and "Ημερομηνία" in df.columns:
-        temp_years = pd.to_datetime(df["Ημερομηνία"], errors="coerce").dt.year.dropna().astype(int).unique()
-        years = sorted(list(temp_years), reverse=True)
-        selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + list(years))
-        selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-        search_query = st.sidebar.text_input("🔎 Αναζήτηση Περιγραφής", "")
-    else:
-        selected_year, selected_month, search_query = "Όλα", "Όλοι", ""
+    
+    # Πάντα διαθέσιμα επιλογικά φίλτρα
+    dt_series = pd.to_datetime(df["Ημερομηνία"], errors="coerce") if not df.empty and "Ημερομηνία" in df.columns else pd.Series(dtype='datetime64[ns]')
+    valid_years = dt_series.dt.year.dropna().astype(int).unique() if not dt_series.empty else []
+    years = sorted(list(valid_years), reverse=True)
+    
+    selected_year = st.sidebar.selectbox("Έτος", ["Όλα"] + list(years))
+    selected_month = st.sidebar.selectbox("Μήνας", ["Όλοι", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    search_query = st.sidebar.text_input("🔎 Αναζήτηση Περιγραφής", "")
 
     # Theme CSS Injection
     theme = st.session_state.get("theme", "Dark Mode 🌙")
