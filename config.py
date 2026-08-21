@@ -1,3 +1,13 @@
+import streamlit as st
+import gspread
+from google.oauth2.service_account import Credentials
+import base64
+
+# --- CONSTANTS ---
+ICON_URL = "https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png"
+INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
+EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
+
 # --- GOOGLE SHEETS SETUP ---
 @st.cache_resource
 def get_sheets_connection():
