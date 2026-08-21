@@ -12,6 +12,7 @@ import re
 import hashlib
 import json
 from PIL import Image
+from google import genai
 
 # 1. Favicon στο Tab του Browser
 ICON_URL = "https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png"
@@ -274,7 +275,7 @@ if check_password():
         # Savings Rate Calculation
         savings_rate = ((total_income - total_expenses) / total_income * 100) if total_income > 0 else 0.0
 
-        # 1. MAIN BALANCE CARD (LARGE FONT, NO ALL CAPS)
+        # MAIN BALANCE CARD
         st.markdown(
             f"""
             <div style="background-color: {card_bg}; padding: 18px 12px; border-radius: 12px; margin-bottom: 12px; text-align: center; border: 1px solid #333333;">
@@ -293,7 +294,7 @@ if check_password():
         if safe_to_spend_daily < 10.0 and final_balance > 0:
             st.error(f"🚨 **Alert:** Safe-to-Spend στα **{safe_to_spend_daily:.2f} € / ημέρα**!")
 
-        # 2. COMPACT SIDE-BY-SIDE METRICS (SAVINGS RATE & BURN RATE)
+        # COMPACT SIDE-BY-SIDE METRICS
         m_col1, m_col2 = st.columns(2)
         with m_col1:
             st.metric(
@@ -413,13 +414,12 @@ if check_password():
 
         st.markdown("---")
 
-        # 3. COMPACT ULTRA-LIGHT HISTORICAL TABLE (ONE-LINE ENTRIES)
+        # HISTORICAL TABLE
         st.subheader("📋 Ιστορικό Εγγραφών")
         if not filtered_df.empty:
             display_hist = filtered_df.sort_values(by="Ημερομηνία", ascending=False).copy()
             display_hist["Ποσό (€)"] = display_hist.apply(lambda r: f"{'+' if r['Τύπος']=='Έσοδο' else '-'}{r['Ποσό']:.2f} €", axis=1)
             
-            # Επιλογή και μετονομασία στηλών για 1-line προβολή
             table_df = display_hist[["Ημερομηνία", "Κατηγορία", "Περιγραφή", "Ποσό (€)"]].reset_index(drop=True)
             
             st.dataframe(
@@ -429,7 +429,6 @@ if check_password():
                 hide_index=True
             )
             
-            # Επεξεργασία / Διαγραφή μέσω καθαρού επιλογέα (1 γραμμή)
             with st.expander("✏️ Επεξεργασία / Διαγραφή Εγγραφής"):
                 selected_row_idx = st.selectbox(
                     "Επιλογή Εγγραφής:",
@@ -533,35 +532,59 @@ if check_password():
                 st.rerun()
 
         with col_right:
-            st.subheader("📸 Receipt Scanner (OCR)")
+            st.subheader("📸 Receipt Scanner (AI Vision)")
             uploaded_receipt = st.file_uploader("Ανέβασμα Απόδειξης (JPG/PNG)", type=["jpg", "png", "jpeg"], key="ocr_file")
 
             scanned_amount = 0.0
-            scanned_desc = ""
+            scanned_desc = "Απόδειξη"
             scanned_category = "Super Market"
 
             if uploaded_receipt is not None:
                 st.image(uploaded_receipt, caption="Απόδειξη", use_container_width=True)
-                try:
-                    img = Image.open(uploaded_receipt).convert('L')
-                    import pytesseract
-                    extracted_text = pytesseract.image_to_string(img, lang='ell+eng', config='--psm 6')
-                    amounts = re.findall(r'\b\d+[\.,]\d{2}\b', extracted_text)
-                    if amounts:
-                        clean_amounts = [float(a.replace(',', '.')) for a in amounts if float(a.replace(',', '.')) < 2000]
-                        if clean_amounts: scanned_amount = max(clean_amounts)
-                    text_lower = extracted_text.lower()
-                    if any(w in text_lower for w in ["μασούτης", "σκλαβενίτης", "lidl", "αβ", "super"]):
-                        scanned_desc, scanned_category = "Super Market", "Super Market"
-                    elif any(w in text_lower for w in ["bp", "shell", "eko", "diesel", "βενζίνη"]):
-                        scanned_desc, scanned_category = "Πρατήριο Καυσίμων", "Μετακινήσεις"
-                    else: scanned_desc = "Αγορά από Απόδειξη"
-                except Exception:
-                    scanned_desc = "Νέα Απόδειξη"
+                
+                if "GEMINI_API_KEY" in st.secrets:
+                    try:
+                        with st.spinner("🤖 Η AI αναλύει την απόδειξη..."):
+                            client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                            image_bytes = uploaded_receipt.getvalue()
+                            
+                            prompt = f"""
+                            Ανάλυσε αυτή την εικόνα απόδειξης και επιστρέψε ΜΟΝΟ ένα έγκυρο JSON αντικείμενο χωρίς άλλο κείμενο.
+                            Το JSON πρέπει να έχει τη μορφή:
+                            {{
+                                "amount": <float, το τελικό συνολικό ποσό πληρωμής σε ευρώ>,
+                                "description": <string, το όνομα του καταστήματος ή σύντομη περιγραφή>,
+                                "category": <string, επίλεξε ΑΚΡΙΒΩΣ μία από τις εξής κατηγορίες: {EXPENSE_CATEGORIES}>
+                            }}
+                            """
+                            
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash',
+                                contents=[
+                                    prompt,
+                                    genai.types.Part.from_bytes(data=image_bytes, mime_type=uploaded_receipt.type)
+                                ]
+                            )
+                            
+                            res_text = response.text.strip()
+                            # Clean potential markdown formatting
+                            if "```json" in res_text:
+                                res_text = res_text.split("```json")[1].split("```")[0].strip()
+                            elif "```" in res_text:
+                                res_text = res_text.split("```")[1].split("```")[0].strip()
+                                
+                            parsed = json.loads(res_text)
+                            scanned_amount = float(parsed.get("amount", 0.0))
+                            scanned_desc = str(parsed.get("description", "Απόδειξη"))
+                            cat_candidate = str(parsed.get("category", "Super Market"))
+                            scanned_category = cat_candidate if cat_candidate in EXPENSE_CATEGORIES else "Super Market"
+                            st.success("✅ Η AI διάβασε την απόδειξη με επιτυχία!")
+                    except Exception as e:
+                        st.warning("⚠️ Δεν ήταν δυνατή η αυτόματη ανάγνωση μέσω AI. Παρακαλώ εισάγετε τα στοιχεία χειροκίνητα.")
 
                 st.markdown("**🔍 Επιβεβαίωση Σάρωσης:**")
                 scanned_amount = st.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_tab")
-                scanned_desc = st.text_input("Περιγραφή", value=scanned_desc if scanned_desc else "Απόδειξη", key="scan_desc_tab")
+                scanned_desc = st.text_input("Περιγραφή", value=scanned_desc, key="scan_desc_tab")
                 scanned_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(scanned_category) if scanned_category in EXPENSE_CATEGORIES else 0, key="scan_cat_tab")
 
                 if st.button("📥 Άμεση Καταχώρηση Απόδειξης", key="scan_save_btn"):
