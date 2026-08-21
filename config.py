@@ -1,18 +1,15 @@
-import streamlit as st
-import gspread
-from google.oauth2.service_account import Credentials
-import base64
-
-# --- CONSTANTS ---
-ICON_URL = "https://raw.githubusercontent.com/spirosvoic97-rgb/my-finance-app/main/icon.png"
-INCOME_CATEGORIES = ["Άλλα Έσοδα / Έκτακτα", "Ιδιαίτερα", "Σχολή Χορού / Ωδείο ΑΜ", "Φροντιστήριο"]
-EXPENSE_CATEGORIES = ["Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"]
-
 # --- GOOGLE SHEETS SETUP ---
 @st.cache_resource
 def get_sheets_connection():
     creds_dict = dict(st.secrets["connections"]["gsheets"])
-    decoded_key = base64.b64decode(creds_dict["private_key_base64"]).decode("utf-8")
+    
+    # Ασφαλής προσθήκη Padding για το Base64
+    b64_str = creds_dict["private_key_base64"].strip()
+    missing_padding = len(b64_str) % 4
+    if missing_padding:
+        b64_str += '=' * (4 - missing_padding)
+
+    decoded_key = base64.b64decode(b64_str).decode("utf-8")
     creds_dict["private_key"] = decoded_key.replace("\\n", "\n")
     del creds_dict["private_key_base64"]
 
