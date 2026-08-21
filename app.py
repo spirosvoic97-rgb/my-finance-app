@@ -11,7 +11,7 @@ import calendar
 import re
 import hashlib
 import json
-from PIL import Image
+from PIL import Image, ImageOps
 from google import genai
 
 # 1. Favicon στο Tab του Browser
@@ -540,21 +540,36 @@ if check_password():
             scanned_category = "Super Market"
 
             if uploaded_receipt is not None:
-                st.image(uploaded_receipt, caption="Απόδειξη", use_container_width=True)
-                
+                # 1. Φόρτωση & αυτόματη διόρθωση προσανατολισμού εικόνας
+                img = Image.open(uploaded_receipt)
+                try:
+                    img = ImageOps.exif_transpose(img)
+                except Exception:
+                    pass
+
+                # Αν η εικόνα είναι πιο πλατιά παρά ψηλή, την περιστρέφουμε 90 μοίρες
+                if img.width > img.height:
+                    img = img.rotate(-90, expand=True)
+
+                st.image(img, caption="Απόδειξη (Διορθωμένη)", use_container_width=True)
+
+                # Μετατροπή εικόνας σε Bytes για το API
+                img_byte_arr = BytesIO()
+                img.save(img_byte_arr, format='JPEG')
+                img_bytes = img_byte_arr.getvalue()
+
                 if "GEMINI_API_KEY" in st.secrets:
                     try:
                         with st.spinner("🤖 Η AI αναλύει την απόδειξη..."):
                             client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                            image_bytes = uploaded_receipt.getvalue()
                             
                             prompt = f"""
-                            Ανάλυσε αυτή την εικόνα απόδειξης και επιστρέψε ΜΟΝΟ ένα έγκυρο JSON αντικείμενο χωρίς άλλο κείμενο.
-                            Το JSON πρέπει να έχει τη μορφή:
+                            Ανάλυσε αυτή την εικόνα απόδειξης και επίστρεψε ΜΟΝΟ ένα valid JSON αντικείμενο.
+                            Μορφή JSON:
                             {{
-                                "amount": <float, το τελικό συνολικό ποσό πληρωμής σε ευρώ>,
-                                "description": <string, το όνομα του καταστήματος ή σύντομη περιγραφή>,
-                                "category": <string, επίλεξε ΑΚΡΙΒΩΣ μία από τις εξής κατηγορίες: {EXPENSE_CATEGORIES}>
+                                "amount": <float, το τελικό συνολικό ποσό ΣΥΝΟΛΟ/TOTAL σε ευρώ>,
+                                "description": <string, όνομα καταστήματος π.χ. Σκλαβενίτης>,
+                                "category": <string, επίλεξε μία από: {EXPENSE_CATEGORIES}>
                             }}
                             """
                             
@@ -562,12 +577,11 @@ if check_password():
                                 model='gemini-2.5-flash',
                                 contents=[
                                     prompt,
-                                    genai.types.Part.from_bytes(data=image_bytes, mime_type=uploaded_receipt.type)
+                                    genai.types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')
                                 ]
                             )
                             
                             res_text = response.text.strip()
-                            # Clean potential markdown formatting
                             if "```json" in res_text:
                                 res_text = res_text.split("```json")[1].split("```")[0].strip()
                             elif "```" in res_text:
@@ -578,9 +592,9 @@ if check_password():
                             scanned_desc = str(parsed.get("description", "Απόδειξη"))
                             cat_candidate = str(parsed.get("category", "Super Market"))
                             scanned_category = cat_candidate if cat_candidate in EXPENSE_CATEGORIES else "Super Market"
-                            st.success("✅ Η AI διάβασε την απόδειξη με επιτυχία!")
+                            st.success(f"✅ Εντοπίστηκε: {scanned_desc} - {scanned_amount:.2f}€")
                     except Exception as e:
-                        st.warning("⚠️ Δεν ήταν δυνατή η αυτόματη ανάγνωση μέσω AI. Παρακαλώ εισάγετε τα στοιχεία χειροκίνητα.")
+                        st.error(f"⚠️ Σφάλμα AI: {e}")
 
                 st.markdown("**🔍 Επιβεβαίωση Σάρωσης:**")
                 scanned_amount = st.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_tab")
