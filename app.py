@@ -540,25 +540,28 @@ if check_password():
             scanned_category = "Super Market"
 
             if uploaded_receipt is not None:
-                # 1. Φόρτωση & αυτόματη διόρθωση προσανατολισμού εικόνας
+                if "rotation_angle" not in st.session_state:
+                    st.session_state["rotation_angle"] = 0
+
+                if st.button("🔄 Περιστροφή 90°"):
+                    st.session_state["rotation_angle"] = (st.session_state["rotation_angle"] + 90) % 360
+
                 img = Image.open(uploaded_receipt)
                 try:
                     img = ImageOps.exif_transpose(img)
                 except Exception:
                     pass
 
-                # Αν η εικόνα είναι πιο πλατιά παρά ψηλή, την περιστρέφουμε 90 μοίρες
-                if img.width > img.height:
-                    img = img.rotate(-90, expand=True)
+                if st.session_state["rotation_angle"] != 0:
+                    img = img.rotate(-st.session_state["rotation_angle"], expand=True)
 
-                st.image(img, caption="Απόδειξη (Διορθωμένη)", use_container_width=True)
+                st.image(img, caption=f"Απόδειξη (Περιστροφή: {st.session_state['rotation_angle']}°)", use_container_width=True)
 
-                # Μετατροπή εικόνας σε Bytes για το API
                 img_byte_arr = BytesIO()
                 img.save(img_byte_arr, format='JPEG')
                 img_bytes = img_byte_arr.getvalue()
 
-                if "GEMINI_API_KEY" in st.secrets:
+                if "GEMINI_API_KEY" in st.secrets and str(st.secrets["GEMINI_API_KEY"]).strip() != "":
                     try:
                         with st.spinner("🤖 Η AI αναλύει την απόδειξη..."):
                             client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
@@ -568,7 +571,7 @@ if check_password():
                             Μορφή JSON:
                             {{
                                 "amount": <float, το τελικό συνολικό ποσό ΣΥΝΟΛΟ/TOTAL σε ευρώ>,
-                                "description": <string, όνομα καταστήματος π.χ. Σκλαβενίτης>,
+                                "description": <string, όνομα καταστήματος π.χ. ΑΒ Βασιλόπουλος>,
                                 "category": <string, επίλεξε μία από: {EXPENSE_CATEGORIES}>
                             }}
                             """
@@ -594,7 +597,9 @@ if check_password():
                             scanned_category = cat_candidate if cat_candidate in EXPENSE_CATEGORIES else "Super Market"
                             st.success(f"✅ Εντοπίστηκε: {scanned_desc} - {scanned_amount:.2f}€")
                     except Exception as e:
-                        st.error(f"⚠️ Σφάλμα AI: {e}")
+                        st.error(f"⚠️ Σφάλμα κατά την ανάλυση: {e}")
+                else:
+                    st.warning("⚠️ Το GEMINI_API_KEY δεν βρέθηκε στα Streamlit Secrets!")
 
                 st.markdown("**🔍 Επιβεβαίωση Σάρωσης:**")
                 scanned_amount = st.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_tab")
