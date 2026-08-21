@@ -1,5 +1,8 @@
 streamlit
 pandas
 plotly
-st-gsheets-connection
+gspread
+google-auth
 xlsxwriter
+Pillow
+google-genai
