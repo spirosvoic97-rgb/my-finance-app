@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-def render_dashboard(worksheet, current_user):
+def render_dashboard(worksheet, current_user, t=None):
     st.subheader("📊 Αναφορές & Analytics")
 
     try:
