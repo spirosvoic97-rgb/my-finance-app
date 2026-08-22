@@ -68,6 +68,23 @@ TRANSLATIONS = {
         "back_to_app": "⬅️ Επιστροφή στην Εφαρμογή",
         "logout": "🚪 Αποσύνδεση",
         "language": "🌐 Γλώσσα / Language"
+        "dash_title": "📊 Αναφορές & Analytics",
+        "dash_no_data": "Δεν υπάρχουν καταχωρημένα δεδομένα.",
+        "dash_no_data_user": "Δεν βρέθηκαν εγγραφές για τον χρήστη.",
+        "dash_filters": "📅 Φίλτρα Χρονικής Περιόδου",
+        "dash_year": "Επιλογή Έτους",
+        "dash_month": "Επιλογή Μήνα",
+        "dash_inc": "💰 Έσοδα Περιόδου",
+        "dash_exp": "💸 Έξοδα Περιόδου",
+        "dash_net": "📈 Καθαρό Αποτέλεσμα",
+        "dash_pie_title": "🍩 Κατανομή Εξόδων ανά Κατηγορία",
+        "dash_bar_title": "📊 Μηνιαία Τάση Εσόδων vs Εξόδων",
+        "dash_no_exp": "Δεν υπάρχουν έξοδα για τη συγκεκριμένη περίοδο.",
+        "dash_no_trend": "Δεν υπάρχουν δεδομένα τάσης.",
+        "inc_label": "Έσοδα",
+        "exp_label": "Έξοδα",
+        "all": "Όλα",
+        "month": "Μήνας"
     },
     "EN": {
         "login_title": "🔐 Login",
@@ -100,6 +117,23 @@ TRANSLATIONS = {
         "back_to_app": "⬅️ Back to Main App",
         "logout": "🚪 Logout",
         "language": "🌐 Language"
+        "dash_title": "📊 Reports & Analytics",
+        "dash_no_data": "No recorded data found.",
+        "dash_no_data_user": "No entries found for this user.",
+        "dash_filters": "📅 Date Filters",
+        "dash_year": "Select Year",
+        "dash_month": "Select Month",
+        "dash_inc": "💰 Period Income",
+        "dash_exp": "💸 Period Expenses",
+        "dash_net": "📈 Net Result",
+        "dash_pie_title": "🍩 Expense Distribution by Category",
+        "dash_bar_title": "📊 Monthly Income vs Expense Trend",
+        "dash_no_exp": "No expenses found for this period.",
+        "dash_no_trend": "No trend data available.",
+        "inc_label": "Income",
+        "exp_label": "Expenses",
+        "all": "All",
+        "month": "Month"
     }
 }
 
