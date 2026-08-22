@@ -18,6 +18,19 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- HELPER: PASSWORD STRENGTH CHECKER ---
+def is_strong_password(password):
+    """Ελέγχει αν ο κωδικός πληροί τους αυστηρούς κανόνες ασφαλείας."""
+    if len(password) < 8:
+        return False, "Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες."
+    if not any(c.isupper() for c in password):
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 κεφαλαίο γράμμα."
+    if not any(c.isdigit() for c in password):
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 αριθμό."
+    if not any(c in string.punctuation for c in password):
+        return False, f"Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο (π.χ. @, #, $, %, !)."
+    return True, ""
+
 # --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
 def send_email(to_email, subject, body):
     if "email" not in st.secrets:
@@ -68,7 +81,6 @@ def check_password(users_sheet):
             if username_input in sheet_users:
                 stored_hash = sheet_users[username_input]["pass"]
                 try:
-                    # Επαλήθευση του Hash
                     if bcrypt.checkpw(password_input.encode('utf-8'), stored_hash.encode('utf-8')):
                         st.session_state["password_correct"] = True
                         st.session_state["current_user"] = username_input
@@ -88,6 +100,8 @@ def check_password(users_sheet):
         new_user = st.text_input("Όνομα Χρήστη (Username)", key="signup_user").strip()
         new_pass = st.text_input("Νέος Κωδικός", type="password", key="signup_pass")
         confirm_pass = st.text_input("Επιβεβαίωση Κωδικού", type="password", key="signup_confirm")
+        
+        st.caption("Ο κωδικός πρέπει να έχει: τουλ. 8 χαρακτήρες, 1 κεφαλαίο, 1 αριθμό, 1 σύμβολο.")
 
         if st.button("Δημιουργία Λογαριασμού", key="btn_signup"):
             if not new_email or not new_user or not new_pass:
@@ -97,13 +111,19 @@ def check_password(users_sheet):
             elif new_pass != confirm_pass:
                 st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
             else:
-                try:
-                    # Κρυπτογράφηση του νέου κωδικού (Hashing)
-                    hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                    users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
-                    st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
-                except Exception as e:
-                    st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
+                # --- ΕΔΩ ΕΙΝΑΙ Ο ΝΕΟΣ ΑΥΣΤΗΡΟΣ ΕΛΕΓΧΟΣ ---
+                is_valid, error_message = is_strong_password(new_pass)
+                
+                if not is_valid:
+                    st.error(f"❌ {error_message}")
+                else:
+                    try:
+                        # Κρυπτογράφηση του νέου κωδικού (Hashing)
+                        hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                        users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
+                        st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
+                    except Exception as e:
+                        st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
 
     # RESET PASSWORD TAB
     with tab_reset:
@@ -125,11 +145,9 @@ def check_password(users_sheet):
                                 break
 
                     if found_row_index:
-                        # Δημιουργία τυχαίου 8-ψήφιου κωδικού
-                        temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+                        temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8)) + "A1!"
                         temp_hashed = bcrypt.hashpw(temp_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
                         
-                        # Ενημέρωση του Excel με το νέο Hash
                         users_sheet.update_cell(found_row_index, 2, temp_hashed)
 
                         subject = "🔑 Νέος Κωδικός - Personal Finance Tracker"
