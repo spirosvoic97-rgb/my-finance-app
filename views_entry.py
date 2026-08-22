@@ -39,7 +39,9 @@ def render_entry(worksheet, current_user, t=None):
         st.subheader("➕ Χειροκίνητη Καταχώρηση")
         entry_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], horizontal=True, key="manual_type")
         date = st.date_input("Ημερομηνία", key="manual_date")
-        description = st.text_input("Περιγραφή", key="manual_desc", placeholder="π.χ. Αλλαγή λαδιών")
+        
+        # Πεδία με Session State για αυτόματο μηδενισμό μετά την αποθήκευση
+        description = st.text_input("Περιγραφή", key="manual_desc_input", placeholder="π.χ. Αλλαγή λαδιών")
 
         cats = INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES
         
@@ -69,14 +71,22 @@ def render_entry(worksheet, current_user, t=None):
         if current_idx >= len(cats): current_idx = 0
 
         category = st.selectbox("Κατηγορία", cats, index=current_idx, key="manual_cat")
-        amount = st.number_input("Ποσό (€)", value=0.0, min_value=0.0, format="%.2f", key="manual_amt")
+        amount = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f", key="manual_amt_input")
 
         if st.button("Αποθήκευση Εγγραφής", key="manual_save"):
-            worksheet.append_row([str(date), description, entry_type, category, float(amount), "Όχι", current_user], value_input_option="USER_ENTERED")
-            st.cache_data.clear()
-            if "selected_cat_idx" in st.session_state: del st.session_state["selected_cat_idx"]
-            st.success("Η εγγραφή αποθηκεύτηκε επιτυχώς!")
-            st.rerun()
+            if not description or amount <= 0:
+                st.warning("⚠️ Παρακαλώ συμπληρώστε Περιγραφή και Ποσό μεγαλύτερο του 0.")
+            else:
+                worksheet.append_row([str(date), description, entry_type, category, float(amount), "Όχι", current_user], value_input_option="USER_ENTERED")
+                st.cache_data.clear()
+                
+                # Καθαρισμός πεδίων
+                if "selected_cat_idx" in st.session_state: del st.session_state["selected_cat_idx"]
+                st.session_state["manual_desc_input"] = ""
+                st.session_state["manual_amt_input"] = 0.0
+                
+                st.success("🎉 Η εγγραφή καταχωρήθηκε επιτυχώς!")
+                st.rerun()
 
     # --- RIGHT COLUMN: RECEIPT SCANNER ---
     with col_right:
@@ -130,5 +140,5 @@ def render_entry(worksheet, current_user, t=None):
                     st.cache_data.clear()
                     st.session_state["uploader_key"] += 1
                     st.session_state["scan_results"] = None 
-                    st.success("🎉 Καταχωρήθηκε!")
+                    st.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
                     st.rerun()
