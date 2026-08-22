@@ -90,7 +90,6 @@ def render_dashboard(worksheet, current_user, t=None):
 
     fixed_expenses = 0.0
     if cat_col and type_col:
-        # Έλεγχος αν η κατηγορία περιέχει τις λέξεις Πάγια, Λογαριασμοί ή Αποταμίευση (Case-Insensitive)
         cat_series = filtered_df[cat_col].astype(str).str.lower()
         fixed_mask = (filtered_df[type_col] == "Έξοδο") & (
             cat_series.str.contains("πάγια", na=False) | 
