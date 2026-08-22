@@ -50,7 +50,7 @@ def render_entry(worksheet, current_user):
                 try:
                     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
                     res = client.models.generate_content(
-                        model='gemini-3.6-flash',
+                        model='gemini-1.5-flash',
                         contents=f"Ανάλυσε τη δαπάνη: '{description}'. Επίλεξε την πιο ταιριαστή κατηγορία.",
                         config={
                             'response_mime_type': 'application/json',
