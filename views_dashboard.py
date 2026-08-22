@@ -7,6 +7,17 @@ import calendar
 def render_dashboard(worksheet, current_user, t=None):
     if t is None: t = {}
 
+    # CSS FIX ΓΙΑ ΝΑ ΜΗΝ ΚΟΒΟΝΤΑΙ ΤΑ TOOLTIPS ΣΤΑ ΚΙΝΗΤΑ
+    st.markdown("""
+        <style>
+            div[data-baseweb="popover"] {
+                max-width: 85vw !important;
+                white-space: normal !important;
+                word-wrap: break-word !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     st.subheader(t.get("dash_title", "📊 Αναφορές & Analytics"))
 
     try:
@@ -98,7 +109,7 @@ def render_dashboard(worksheet, current_user, t=None):
     col3.metric(
         "🟢 Safe to Spend / ημέρα", 
         f"{daily_safe_to_spend:.2f} € / μέρα", 
-        help="Είναι το ανώτατο ποσό που μπορείτε να ξοδεύετε κάθε μέρα για τις επόμενες μέρες του μήνα, αφού έχουν καλυφθεί τα λογαριασμοί, τα πάγια και η αποταμίευσή σας, ώστε να μη βγείτε εκτός προϋπολογισμού."
+        help="Το ημερήσιο όριο εξόδων (μετά τα πάγια), για να μη βγείτε εκτός προϋπολογισμού."
     )
 
     # --- PROGRESS BAR YΠΟΛΟΓΙΣΜΟΣ ---
