@@ -55,7 +55,6 @@ def render_dashboard(worksheet, current_user, t=None):
     type_col = "Τύπος" if "Τύπος" in df.columns else None
     cat_col = "Κατηγορία" if "Κατηγορία" in df.columns else None
 
-    # Προετοιμασία προσωρινών φιλτραρισμένων δεδομένων για αρχική προβολή
     temp_df = df.copy()
     temp_amounts = numeric_amounts
 
@@ -107,7 +106,7 @@ def render_dashboard(worksheet, current_user, t=None):
     with col_sort_compact:
         sort_order = st.selectbox(
             "⇅ Ταξινόμηση κατά",
-            ["Ημερομηνία (Νεότερες)", "Ημερομηνία (Παλαιότερες)", "Ποσό (Μεγαλύτερα)", "Ποσό (Μικρότερα)"],
+            ["Ημερομηνία (Νεότερες πρώτα)", "Ημερομηνία (Παλαιότερες πρώτα)", "Ποσό (Μεγαλύτερα)", "Ποσό (Μικρότερα)"],
             key="compact_sort_select"
         )
 
@@ -141,10 +140,10 @@ def render_dashboard(worksheet, current_user, t=None):
     filtered_df["Clean_Amount"] = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     filtered_df["Ποσό (€)"] = filtered_df["Clean_Amount"]
 
-    # Εφαρμογή Ταξινόμησης
-    if sort_order == "Ημερομηνία (Νεότερες)":
+    # ΕΦΑΡΜΟΓΗ ΔΙΟΡΘΩΜΕΝΗΣ ΤΑΞΙΝΟΜΗΣΗΣ (Νεότερες πρώτα = Στην κορυφή)
+    if sort_order == "Ημερομηνία (Νεότερες πρώτα)":
         filtered_df = filtered_df.sort_values(by="Date_Parsed", ascending=False)
-    elif sort_order == "Ημερομηνία (Παλαιότερες)":
+    elif sort_order == "Ημερομηνία (Παλαιότερες πρώτα)":
         filtered_df = filtered_df.sort_values(by="Date_Parsed", ascending=True)
     elif sort_order == "Ποσό (Μεγαλύτερα)":
         filtered_df = filtered_df.sort_values(by="Clean_Amount", ascending=False)
@@ -162,7 +161,6 @@ def render_dashboard(worksheet, current_user, t=None):
     if "dash_page" not in st.session_state:
         st.session_state["dash_page"] = 1
 
-    # Περιορισμός σε περίπτωση που άλλαξαν τα φίλτρα
     if st.session_state["dash_page"] > total_pages:
         st.session_state["dash_page"] = 1
 
