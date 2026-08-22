@@ -14,14 +14,9 @@ def render_dashboard(worksheet, current_user):
         st.info("Δεν υπάρχουν ακόμα εγγραφές στο Google Sheet.")
         return
 
-    # Καθαρισμός επικεφαλίδων για αποφυγή κενών/διπλότυπων στηλών
+    # Καθαρισμός επικεφαλίδων
     raw_headers = data[0]
-    clean_headers = []
-    for i, h in enumerate(raw_headers):
-        h_str = str(h).strip()
-        if not h_str:
-            h_str = f"Column_{i+1}"
-        clean_headers.append(h_str)
+    clean_headers = [str(h).strip() if str(h).strip() else f"Col_{i+1}" for i, h in enumerate(raw_headers)]
 
     rows = data[1:]
     df = pd.DataFrame(rows, columns=clean_headers)
@@ -34,10 +29,9 @@ def render_dashboard(worksheet, current_user):
         st.info(f"Δεν βρέθηκαν εγγραφές για τον χρήστη {current_user}.")
         return
 
-    # Μετατροπή Ποσού σε αριθμητική μορφή
-    amount_col = "Ποσό" if "Ποσό" in df.columns else None
-    if amount_col:
-        numeric_amounts = pd.to_numeric(df[amount_col].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+    # Μετατροπή Ποσού σε αριθμό
+    if "Ποσό" in df.columns:
+        numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     else:
         st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
         return
@@ -69,8 +63,12 @@ def render_dashboard(worksheet, current_user):
             cat_summary = df_chart.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
             st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό")
 
-    # Πίνακας Τελευταίων Εγγραφών (Ασφαλής προβολή χωρίς PyArrow crash)
+    # Πίνακας Τελευταίων Εγγραφών (ΜΟΝΟ οι πρώτες 5 βασικές στήλες)
     st.markdown("---")
     st.subheader("📋 Τελευταίες Εγγραφές")
-    df_display = df.tail(10).astype(str)
+    
+    desired_cols = ["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]
+    available_cols = [c for c in desired_cols if c in df.columns]
+    
+    df_display = df[available_cols].tail(10).astype(str)
     st.table(df_display)
