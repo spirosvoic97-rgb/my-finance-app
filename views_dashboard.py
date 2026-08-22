@@ -231,7 +231,7 @@ def render_dashboard(worksheet, current_user, t=None):
         if not df_exp.empty:
             cat_sum = df_exp.groupby(cat_col)["Ποσό (€)"].sum().reset_index()
             fig = px.pie(cat_sum, values="Ποσό (€)", names=cat_col, hole=0.4, title="Κατανομή Εξόδων ανά Κατηγορία")
-            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_traces(textposition='inside', textinfo='percent')
             fig.update_layout(dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
@@ -242,7 +242,7 @@ def render_dashboard(worksheet, current_user, t=None):
         if not df_inc.empty:
             cat_sum = df_inc.groupby(cat_col)["Ποσό (€)"].sum().reset_index()
             fig = px.pie(cat_sum, values="Ποσό (€)", names=cat_col, hole=0.4, title="Κατανομή Εσόδων ανά Κατηγορία")
-            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_traces(textposition='inside', textinfo='percent')
             fig.update_layout(dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
