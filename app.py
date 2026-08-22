@@ -65,7 +65,8 @@ def check_password(users_sheet):
             if username_input in passwords and passwords[username_input] == password_input:
                 st.session_state["password_correct"] = True
                 st.session_state["current_user"] = username_input
-                st.session_state["user_email"] = ""
+                # Αν υπάρχει στο Sheet πάρε το email, αλλιώς κενό
+                st.session_state["user_email"] = sheet_users.get(username_input, {}).get("email", "")
                 st.rerun()
             elif username_input in sheet_users and sheet_users[username_input]["pass"] == password_input:
                 st.session_state["password_correct"] = True
