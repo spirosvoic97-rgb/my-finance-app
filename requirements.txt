@@ -1,8 +1,6 @@
 streamlit
-pandas
-plotly
 gspread
 google-auth
-xlsxwriter
-Pillow
 google-genai
+pillow
+pydantic
