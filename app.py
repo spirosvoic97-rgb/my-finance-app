@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import smtplib
+from email.mime.text import MIMEText
 from config import ICON_URL, get_sheets_connection
 from views_entry import render_entry
 from views_dashboard import render_dashboard
@@ -12,14 +14,34 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- HELPER: EMAIL SENDER ---
+def send_email(to_email, subject, body):
+    if "email" not in st.secrets:
+        return False, "Δεν έχουν ρυθμιστεί τα Email Secrets."
+    try:
+        conf = st.secrets["email"]
+        msg = MIMEText(body, "html", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = conf["sender_email"]
+        msg["To"] = to_email
+
+        server = smtplib.SMTP(conf["smtp_server"], int(conf["smtp_port"]))
+        server.starttls()
+        server.login(conf["sender_email"], conf["sender_password"])
+        server.send_message(msg)
+        server.quit()
+        return True, "Το email στάλθηκε επιτυχώς!"
+    except Exception as e:
+        return False, f"Σφάλμα αποστολής: {e}"
+
 # --- LOGIN & SIGNUP AUTHENTICATION LOGIC ---
 def check_password(users_sheet):
     if st.session_state.get("password_correct", False):
         return True
 
-    tab_login, tab_signup = st.tabs(["🔐 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη"])
+    tab_login, tab_signup, tab_reset = st.tabs(["🔐 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη", "🔑 Ανάκτηση Κωδικού"])
 
-    # LOGIN TAB (USERNAME & PASSWORD)
+    # LOGIN TAB
     with tab_login:
         st.markdown("### 🔐 Σύνδεση στο Finance App")
         username_input = st.text_input("Όνομα Χρήστη (Username)", key="login_user").strip()
@@ -27,8 +49,6 @@ def check_password(users_sheet):
 
         if st.button("Σύνδεση", key="btn_login"):
             passwords = st.secrets.get("passwords", {})
-            
-            # Διάβασμα χρηστών από το Google Sheet (Email | Password | Username)
             sheet_users = {}
             try:
                 u_data = users_sheet.get_all_values()
@@ -42,13 +62,11 @@ def check_password(users_sheet):
             except Exception:
                 pass
 
-            # Έλεγχος στα Secrets
             if username_input in passwords and passwords[username_input] == password_input:
                 st.session_state["password_correct"] = True
                 st.session_state["current_user"] = username_input
                 st.session_state["user_email"] = ""
                 st.rerun()
-            # Έλεγχος στο Google Sheet
             elif username_input in sheet_users and sheet_users[username_input]["pass"] == password_input:
                 st.session_state["password_correct"] = True
                 st.session_state["current_user"] = username_input
@@ -57,7 +75,7 @@ def check_password(users_sheet):
             else:
                 st.error("❌ Λανθασμένο Όνομα Χρήστη ή Κωδικός Πρόσβασης.")
 
-    # SIGNUP TAB (EMAIL, USERNAME, PASSWORD)
+    # SIGNUP TAB
     with tab_signup:
         st.markdown("### 📝 Δημιουργία Νέου Λογαριασμού")
         new_email = st.text_input("Email", key="signup_email").strip().lower()
@@ -74,11 +92,49 @@ def check_password(users_sheet):
                 st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
             else:
                 try:
-                    # Αποθήκευση στο Sheet: Email, Password, Username
                     users_sheet.append_row([new_email, new_pass, new_user], value_input_option="USER_ENTERED")
                     st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
                 except Exception as e:
                     st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
+
+    # RESET PASSWORD TAB
+    with tab_reset:
+        st.markdown("### 🔑 Ανάκτηση Κωδικού")
+        reset_email = st.text_input("Εισάγετε το Email σας", key="reset_email").strip().lower()
+
+        if st.button("Αποστολή Κωδικού στο Email", key="btn_reset"):
+            if not reset_email:
+                st.warning("⚠️ Παρακαλώ συμπληρώστε το email σας.")
+            else:
+                try:
+                    u_data = users_sheet.get_all_values()
+                    found_pass, found_user = None, None
+                    if len(u_data) > 1:
+                        for row in u_data[1:]:
+                            if len(row) >= 3 and str(row[0]).strip().lower() == reset_email:
+                                found_pass = row[1]
+                                found_user = row[2]
+                                break
+
+                    if found_pass:
+                        subject = "🔑 Ανάκτηση Κωδικού - Personal Finance Tracker"
+                        body = f"""
+                        <h3>Γεια σου {found_user},</h3>
+                        <p>Ζητήθηκε ανάκτηση κωδικού για την εφαρμογή Personal Finance Tracker.</p>
+                        <p><b>Username:</b> {found_user}<br>
+                        <b>Password:</b> {found_pass}</p>
+                        <hr>
+                        <p><small>Αν δεν ζητήσατε εσείς την ανάκτηση, παρακαλούμε αγνοήστε αυτό το email.</small></p>
+                        """
+                        ok, msg = send_email(reset_email, subject, body)
+                        if ok:
+                            st.success("✅ Ο κωδικός σας στάλθηκε στο email σας!")
+                        else:
+                            st.error(f"⚠️ {msg}")
+                    else:
+                        st.error("❌ Δεν βρέθηκε λογαριασμός με αυτό το email.")
+                except Exception as e:
+                    st.error(f"⚠️ Σφάλμα: {e}")
 
     return False
 
