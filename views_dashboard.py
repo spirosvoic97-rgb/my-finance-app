@@ -80,7 +80,7 @@ def render_dashboard(worksheet, current_user, t=None):
     # --- YΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΩΝ ΠΟΥ ΑΠΟΜΕΝΟΥΝ ΣΤΟΝ ΜΗΝΑ ---
     today = datetime.date.today()
     days_in_month = calendar.monthrange(today.year, today.month)[1]
-    days_remaining = max(1, days_in_month - today.day + 1) # Συμπεριλαμβάνεται η σημερινή μέρα
+    days_remaining = max(1, days_in_month - today.day + 1)
 
     # --- 1. TOP METRICS ---
     total_income = numeric_amounts[df[type_col] == "Έσοδο"].sum() if type_col else 0.0
@@ -90,7 +90,6 @@ def render_dashboard(worksheet, current_user, t=None):
     fixed_exp_total = calculate_fixed_expenses(df, numeric_amounts)
     free_balance = max(0.0, period_balance - fixed_exp_total) if period_balance > 0 else 0.0
     
-    # Ημερήσιο Safe to Spend
     daily_safe_to_spend = free_balance / days_remaining
 
     col1, col2, col3 = st.columns(3)
@@ -99,7 +98,7 @@ def render_dashboard(worksheet, current_user, t=None):
     col3.metric(
         "🟢 Safe to Spend / ημέρα", 
         f"{daily_safe_to_spend:.2f} € / μέρα", 
-        help=f"Διαθέσιμο για ελεύθερη κατανάλωση τις επόμενες {days_remaining} ημέρες του μήνα."
+        help="Είναι το ανώτατο ποσό που μπορείτε να ξοδεύετε κάθε μέρα για τις επόμενες μέρες του μήνα, αφού έχουν καλυφθεί τα λογαριασμοί, τα πάγια και η αποταμίευσή σας, ώστε να μη βγείτε εκτός προϋπολογισμού."
     )
 
     # --- PROGRESS BAR YΠΟΛΟΓΙΣΜΟΣ ---
