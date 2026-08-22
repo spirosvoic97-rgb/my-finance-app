@@ -32,7 +32,7 @@ def send_email_attachment(to_email, subject, body, attachment_bytes=None, filena
     except Exception as e:
         return False, f"Σφάλμα αποστολής: {e}"
 
-def render_profile(users_sheet, current_user):
+def render_profile(users_sheet, worksheet, current_user):
     st.subheader("⚙️ Διαχείριση Προφίλ & Υπηρεσίες Email")
     st.write(f"Συνδεδεμένος χρήστης: **{current_user}**")
     
@@ -47,7 +47,6 @@ def render_profile(users_sheet, current_user):
             st.error("❌ Παρακαλώ εισάγετε ένα έγκυρο Email.")
         else:
             try:
-                # Ενημέρωση ή εγγραφή στο Sheet χρηστών
                 u_data = users_sheet.get_all_values()
                 found = False
                 if len(u_data) > 1:
@@ -77,31 +76,90 @@ def render_profile(users_sheet, current_user):
 
     col_mail1, col_mail2 = st.columns(2)
 
+    # --- ΔΙΑΒΑΣΜΑ ΔΕΔΟΜΕΝΩΝ ΓΙΑ REPORT & BACKUP ---
+    user_df = pd.DataFrame()
+    try:
+        all_vals = worksheet.get_all_values()
+        if len(all_vals) > 1:
+            clean_headers = [str(h).strip() for h in all_vals[0]]
+            df_all = pd.DataFrame(all_vals[1:], columns=clean_headers)
+            if "Username" in df_all.columns:
+                user_df = df_all[df_all["Username"] == current_user].copy()
+            else:
+                user_df = df_all.copy()
+    except Exception:
+        pass
+
     with col_mail1:
         st.markdown("#### 📊 Μηνιαίο Report")
-        st.caption("Στείλε αμέσως μια αναφορά των εξόδων σου στο email σου.")
+        st.caption("Στείλε μια αναλυτική αναφορά των εξόδων σου στο email σου.")
         if st.button("📩 Αποστολή Μηνιαίου Report", key="btn_send_report"):
             current_email = st.session_state.get("user_email", "").strip()
             if not current_email:
                 st.error("❌ Παρακαλώ αποθηκεύστε πρώτα το Email σου παραπάνω.")
             else:
-                subject = "📊 Μηνιαία Οικονομική Αναφορά - Personal Finance Tracker"
+                # Υπολογισμός στατιστικών
+                total_income, total_expense = 0.0, 0.0
+                recent_rows_html = ""
+                
+                if not user_df.empty and "Ποσό" in user_df.columns and "Τύπος" in user_df.columns:
+                    num_amt = pd.to_numeric(user_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+                    total_income = num_amt[user_df["Τύπος"] == "Έσοδο"].sum()
+                    total_expense = num_amt[user_df["Τύπος"] == "Έξοδο"].sum()
+                    
+                    # Πίνακας πρόσφατων εγγραφών
+                    recent_df = user_df.tail(8)
+                    recent_rows_html = "".join([
+                        f"<tr><td style='padding:6px;border:1px solid #ddd;'>{row.get('Ημερομηνία','')}</td>"
+                        f"<td style='padding:6px;border:1px solid #ddd;'>{row.get('Περιγραφή','')}</td>"
+                        f"<td style='padding:6px;border:1px solid #ddd;'>{row.get('Κατηγορία','')}</td>"
+                        f"<td style='padding:6px;border:1px solid #ddd;font-weight:bold;'>{row.get('Ποσό','')} €</td></tr>"
+                        for _, row in recent_df.iterrows()
+                    ])
+
+                balance = total_income - total_expense
+
+                subject = f"📊 Μηνιαία Οικονομική Αναφορά - {current_user}"
                 body = f"""
-                <h2>Γεια σου {current_user}! 💰</h2>
-                <p>Εδώ είναι η μηνιαία σύνοψη των οικονομικών σου από το <b>Personal Finance Tracker</b>.</p>
-                <p>Όλες οι λειτουργίες και τα διαγράμματά σου είναι διαθέσιμα στην εφαρμογή σου!</p>
-                <hr>
-                <p><small>Sent via Personal Finance App</small></p>
+                <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+                    <h2 style="color: #2e7d32;">💰 Μηνιαίο Report - Personal Finance Tracker</h2>
+                    <p>Γεια σου <b>{current_user}</b>! Εδώ είναι η σύνοψη των οικονομικών σου:</p>
+                    
+                    <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <p style="margin: 5px 0;"><b>💵 Συνολικά Έσοδα:</b> <span style="color:#2e7d32;">{total_income:.2f} €</span></p>
+                        <p style="margin: 5px 0;"><b>💸 Συνολικά Έξοδα:</b> <span style="color:#c62828;">{total_expense:.2f} €</span></p>
+                        <hr style="border:0; border-top:1px solid #ccc;">
+                        <p style="margin: 5px 0; font-size:1.1em;"><b>💳 Διαθέσιμο Υπόλοιπο:</b> <b>{balance:.2f} €</b></p>
+                    </div>
+
+                    <h3>📋 Πρόσφατες Εγγραφές:</h3>
+                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <thead>
+                            <tr style="background-color:#0288d1; color:white;">
+                                <th style="padding:8px;border:1px solid #ddd;">Ημερομηνία</th>
+                                <th style="padding:8px;border:1px solid #ddd;">Περιγραφή</th>
+                                <th style="padding:8px;border:1px solid #ddd;">Κατηγορία</th>
+                                <th style="padding:8px;border:1px solid #ddd;">Ποσό</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {recent_rows_html if recent_rows_html else "<tr><td colspan='4' style='padding:8px;'>Δεν υπάρχουν εγγραφές.</td></tr>"}
+                        </tbody>
+                    </table>
+
+                    <br>
+                    <p><small>Sent automatically via Personal Finance App</small></p>
+                </div>
                 """
                 ok, msg = send_email_attachment(current_email, subject, body)
                 if ok:
-                    st.success(f"✅ Το Report στάλθηκε στο {current_email}!")
+                    st.success(f"✅ Το αναλυτικό Report στάλθηκε στο {current_email}!")
                 else:
                     st.error(f"⚠️ {msg}")
 
     with col_mail2:
         st.markdown("#### 📁 Backup σε Excel")
-        st.caption("Λάβε ένα αντίγραφο ασφαλείας όλων των εγγραφών σου σε αρχείο Excel.")
+        st.caption("Λάβε ένα πλήρες αντίγραφο ασφαλείας όλων των εγγραφών σου σε αρχείο Excel.")
         if st.button("📤 Αποστολή Excel στο Email", key="btn_send_excel"):
             current_email = st.session_state.get("user_email", "").strip()
             if not current_email:
@@ -109,15 +167,22 @@ def render_profile(users_sheet, current_user):
             else:
                 try:
                     excel_buffer = BytesIO()
+                    
+                    # Καθαρισμός στηλών για το Excel
+                    export_df = user_df.copy() if not user_df.empty else pd.DataFrame([{"Πληροφορία": "Δεν βρέθηκαν εγγραφές"}])
+                    
                     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df_dummy = pd.DataFrame([{"Πληροφορία": "Finance Backup", "User": current_user}])
-                        df_dummy.to_excel(writer, index=False, sheet_name="Backup")
+                        export_df.to_excel(writer, index=False, sheet_name="Finance_Data")
                     
                     excel_data = excel_buffer.getvalue()
-                    subject = "📁 Backup Οικονομικών Δεδομένων - Personal Finance Tracker"
-                    body = f"<h3>Γεια σου {current_user},</h3><p>Επισυνάπτεται το αρχείο Excel με τα οικονομικά σου δεδομένα.</p>"
+                    subject = f"📁 Backup Οικονομικών Δεδομένων - {current_user}"
+                    body = f"""
+                    <h3>Γεια σου {current_user},</h3>
+                    <p>Επισυνάπτεται το πλήρες αρχείο Excel (<code>Finance_Backup.xlsx</code>) με όλες τις καταχωρήσεις σου.</p>
+                    <p><small>Sent via Personal Finance App</small></p>
+                    """
                     
-                    ok, msg = send_email_attachment(current_email, subject, body, excel_data, "Finance_Backup.xlsx")
+                    ok, msg = send_email_attachment(current_email, subject, body, excel_data, f"Finance_Backup_{current_user}.xlsx")
                     if ok:
                         st.success(f"✅ Το αρχείο Excel στάλθηκε στο {current_email}!")
                     else:
