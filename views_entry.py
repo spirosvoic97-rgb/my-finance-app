@@ -32,7 +32,7 @@ def process_image_for_api(img, max_size=(1024, 1024)):
     img.save(img_byte_arr, format='JPEG', quality=85)
     return img_byte_arr.getvalue()
 
-def render_entry(worksheet, current_user):
+def render_entry(worksheet, current_user, t=None):
     col_left, col_right = st.columns([1, 1])
 
     # --- LEFT COLUMN: MANUAL ENTRY ---
@@ -40,7 +40,7 @@ def render_entry(worksheet, current_user):
         st.subheader("➕ Χειροκίνητη Καταχώρηση")
         entry_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], horizontal=True, key="manual_type")
         date = st.date_input("Ημερομηνία", key="manual_date")
-        description = st.text_input("Περιγραφή", key="manual_desc", placeholder="π.χ. Αλλαγή λαδιών Peugeot")
+        description = st.text_input("Περιγραφή", key="manual_desc", placeholder="π.χ. Αλλαγή λαδιών")
 
         cats = INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES
         
@@ -186,11 +186,9 @@ def render_entry(worksheet, current_user):
         if not user_df.empty:
             user_df["Sheet_Row"] = user_df.index + 2
 
-            # Προετοιμασία στηλών για ταξινόμηση
             user_df["Numeric_Amount"] = pd.to_numeric(user_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
             user_df["Parsed_Date"] = pd.to_datetime(user_df["Ημερομηνία"], errors="coerce")
 
-            # --- ΧΕΙΡΙΣΤΗΡΙΟ ΤΑΞΙΝΟΜΗΣΗΣ ---
             col_sort1, col_sort2 = st.columns([2, 1])
             with col_sort1:
                 sort_option = st.selectbox(
@@ -204,7 +202,6 @@ def render_entry(worksheet, current_user):
                     key="sort_option_select"
                 )
 
-            # Εφαρμογή Ταξινόμησης
             if sort_option == "Ημερομηνία (Φθίνουσα - Νεότερες πρώτα)":
                 user_df = user_df.sort_values(by="Parsed_Date", ascending=False)
             elif sort_option == "Ημερομηνία (Αύξουσα - Παλαιότερες πρώτα)":
