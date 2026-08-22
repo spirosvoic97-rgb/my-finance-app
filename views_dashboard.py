@@ -4,14 +4,22 @@ import pandas as pd
 def render_dashboard(worksheet, current_user):
     st.subheader("📊 Αναφορές & Analytics")
 
-    records = worksheet.get_all_records()
-    df = pd.DataFrame(records)
-
-    if df.empty:
-        st.info("Δεν υπάρχουν ακόμα εγγραφές.")
+    try:
+        data = worksheet.get_all_values()
+    except Exception as e:
+        st.error(f"⚠️ Σφάλμα κατά τη ανάγνωση του Google Sheet: {e}")
         return
 
-    # Φιλτράρισμα ανά χρήστη
+    if not data or len(data) <= 1:
+        st.info("Δεν υπάρχουν ακόμα εγγραφές στο Google Sheet.")
+        return
+
+    # Δημιουργία DataFrame με βάση την πρώτη γραμμή ως επικεφαλίδες
+    headers = data[0]
+    rows = data[1:]
+    df = pd.DataFrame(rows, columns=headers)
+
+    # Φιλτράρισμα ανά χρήστη αν υπάρχει η στήλη Username
     if "Username" in df.columns:
         df = df[df["Username"] == current_user]
 
@@ -19,12 +27,16 @@ def render_dashboard(worksheet, current_user):
         st.info(f"Δεν βρέθηκαν εγγραφές για τον χρήστη {current_user}.")
         return
 
-    # Μετατροπή Ποσού σε αριθμό
-    df["Ποσό"] = pd.to_numeric(df["Ποσό"], errors="coerce").fillna(0)
+    # Μετατροπή της στήλης Ποσό σε αριθμό
+    if "Ποσό" in df.columns:
+        df["Ποσό"] = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+    else:
+        st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
+        return
 
     # Υπολογισμός Συνόλων
-    total_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum()
-    total_expense = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum()
+    total_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if "Τύπος" in df.columns else 0.0
+    total_expense = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if "Τύπος" in df.columns else 0.0
     balance = total_income - total_expense
 
     # Εμφάνιση Metrics
@@ -36,12 +48,13 @@ def render_dashboard(worksheet, current_user):
     st.markdown("---")
 
     # Ανάλυση Εξόδων ανά Κατηγορία
-    df_expenses = df[df["Τύπος"] == "Έξοδο"]
-    if not df_expenses.empty:
-        st.subheader("📉 Έξοδα ανά Κατηγορία")
-        cat_summary = df_expenses.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
-        st.dataframe(cat_summary, use_container_width=True)
-        st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό")
+    if "Τύπος" in df.columns and "Κατηγορία" in df.columns:
+        df_expenses = df[df["Τύπος"] == "Έξοδο"]
+        if not df_expenses.empty:
+            st.subheader("📉 Έξοδα ανά Κατηγορία")
+            cat_summary = df_expenses.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
+            st.dataframe(cat_summary, use_container_width=True)
+            st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό")
 
     # Πίνακας Τελευταίων Εγγραφών
     st.markdown("---")
