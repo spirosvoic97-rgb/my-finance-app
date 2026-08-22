@@ -9,28 +9,24 @@ from pydantic import BaseModel, Field
 from typing import List
 from config import INCOME_CATEGORIES, EXPENSE_CATEGORIES
 
-# Δυναμικό string για το Prompt ώστε το AI να διαλέγει ΑΚΡΙΒΩΣ τις κατηγορίες σου
 EXPENSE_CATS_STR = ", ".join([f"'{c}'" for c in EXPENSE_CATEGORIES])
 
 class ItemLine(BaseModel):
-    item_name: str = Field(description="Το όνομα του προϊόντος ή της υπηρεσίας (π.χ. 'Γάλα', 'Βενζίνη').")
-    price: float = Field(description="Η τελική τιμή του προϊόντος/υπηρεσίας σε ευρώ. Μόνο νούμερο.")
+    item_name: str = Field(description="Το όνομα του προϊόντος ή της υπηρεσίας.")
+    price: float = Field(description="Η τελική τιμή του προϊόντος/υπηρεσίας σε ευρώ.")
 
 class ReceiptSchema(BaseModel):
-    amount: float = Field(description="Το ΤΕΛΙΚΟ πληρωτέο ποσό σε ευρώ. Αγνοήσε μερικά σύνολα ή φόρους. Βρες το τελικό (ΣΥΝΟΛΟ/TOTAL).")
-    description: str = Field(description="Η επωνυμία του καταστήματος/επιχείρησης. Αν δεν διακρίνεται, γράψε 'Άγνωστο Κατάστημα'.")
-    category: str = Field(description=f"ΠΡΕΠΕΙ ΑΥΣΤΗΡΑ να είναι ΜΟΝΟ ΜΙΑ από αυτές τις επιλογές (copy-paste): {EXPENSE_CATS_STR}.")
-    items: List[ItemLine] = Field(default=[], description="Λίστα με τα προϊόντα. Αγνοήσε γραμμές που αφορούν φόρους (ΦΠΑ) ή ρέστα.")
+    amount: float = Field(description="Το ΤΕΛΙΚΟ πληρωτέο ποσό σε ευρώ (ΣΥΝΟΛΟ/TOTAL).")
+    description: str = Field(description="Η επωνυμία του καταστήματος/επιχείρησης.")
+    category: str = Field(description=f"ΠΡΕΠΕΙ ΑΥΣΤΗΡΑ να είναι ΜΟΝΟ ΜΙΑ από αυτές τις επιλογές: {EXPENSE_CATS_STR}.")
+    items: List[ItemLine] = Field(default=[], description="Λίστα με τα μεμονωμένα προϊόντα.")
 
 class AutoCategorySchema(BaseModel):
     category: str = Field(description=f"ΠΡΕΠΕΙ ΑΥΣΤΗΡΑ να είναι ΜΟΝΟ ΜΙΑ από αυτές τις επιλογές: {EXPENSE_CATS_STR}.")
 
 def process_image_for_api(img, max_size=(1024, 1024)):
-    """Resize, μετατροπή σε RGB (αν χρειάζεται) και συμπίεση εικόνας πριν την αποστολή στο API"""
-    # Αν η εικόνα έχει διαφάνεια (RGBA ή P), την κάνουμε κανονικό RGB
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-        
     img.thumbnail(max_size, Image.Resampling.LANCZOS)
     img_byte_arr = BytesIO()
     img.save(img_byte_arr, format='JPEG', quality=85)
@@ -69,7 +65,7 @@ def render_entry(worksheet, current_user):
                         st.success(f"🤖 Προτάθηκε: {suggested_cat}")
                     else:
                         st.warning("Το AI επέστρεψε άγνωστη κατηγορία.")
-                except Exception as e:
+                except Exception:
                     st.error("⚠️ Αποτυχία σύνδεσης με AI.")
 
         current_idx = st.session_state.get("selected_cat_idx", 0)
@@ -89,18 +85,15 @@ def render_entry(worksheet, current_user):
     with col_right:
         st.subheader("📸 Receipt Scanner (AI Vision)")
 
-        # Μηχανισμός επαναφοράς του uploader
         if "uploader_key" not in st.session_state:
             st.session_state["uploader_key"] = 0
             
-        # Μνήμη για να κρατάμε τα αποτελέσματα του AI χωρίς να ξανακαλούμε το API
         if "scan_results" not in st.session_state:
             st.session_state["scan_results"] = None
 
         uploaded_receipt = st.file_uploader("Ανέβασμα Απόδειξης (JPG/PNG)", type=["jpg", "png", "jpeg"], key=f"ocr_file_{st.session_state['uploader_key']}")
 
         if uploaded_receipt is not None:
-            # Αν ο χρήστης ανεβάσει νέα/διαφορετική εικόνα, καθαρίζουμε τα παλιά αποτελέσματα
             if "last_file_name" not in st.session_state or st.session_state["last_file_name"] != uploaded_receipt.name:
                 st.session_state["scan_results"] = None
                 st.session_state["last_file_name"] = uploaded_receipt.name
@@ -112,7 +105,6 @@ def render_entry(worksheet, current_user):
             st.image(img, caption="Απόδειξη προς Ανάλυση", use_container_width=True)
             img_bytes = process_image_for_api(img)
 
-            # ΑΣΦΑΛΕΙΑ 1: Το AI τρέχει ΜΟΝΟ αν πατηθεί το κουμπί
             if st.button("🧠 Έναρξη Ανάλυσης AI", key="btn_start_ai"):
                 if "GEMINI_API_KEY" in st.secrets and str(st.secrets["GEMINI_API_KEY"]).strip() != "":
                     try:
@@ -120,11 +112,11 @@ def render_entry(worksheet, current_user):
                             client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
                             
                             prompt = (
-                                "Λειτουργείς ως αυστηρός λογιστής. Διάβασε την απόδειξη."
+                                "Διάβασε την απόδειξη."
                                 "1. Βρες το τελικό πληρωτέο ποσό."
                                 "2. Βρες την επωνυμία της επιχείρησης."
                                 "3. Επίλεξε ΑΥΣΤΗΡΑ μία από τις κατηγορίες που σου δόθηκαν στο schema."
-                                "4. Κατάγραψε τα προϊόντα (αγνόησε εκπτώσεις, ΦΠΑ, και ρέστα)."
+                                "4. Κατάγραψε τα προϊόντα."
                             )
                             
                             response = client.models.generate_content(
@@ -138,14 +130,11 @@ def render_entry(worksheet, current_user):
                             )
                             
                             parsed = json.loads(response.text)
-                            
-                            # ΑΣΦΑΛΕΙΑ 2: Αποθηκεύουμε τα δεδομένα στη μνήμη του session
                             st.session_state["scan_results"] = parsed
                             st.success("✅ Ανάλυση Ολοκληρώθηκε!")
                     except Exception as e:
                         st.error(f"⚠️ Σφάλμα AI κατά την ανάλυση: {e}")
 
-            # Αν υπάρχουν αποθηκευμένα αποτελέσματα στη μνήμη, εμφάνισε τα πεδία διόρθωσης
             if st.session_state["scan_results"] is not None:
                 res = st.session_state["scan_results"]
                 
@@ -168,7 +157,6 @@ def render_entry(worksheet, current_user):
                     today_str = str(datetime.date.today())
                     worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
                     
-                    # Καθάρισμα μνήμης και UI μετά την αποθήκευση
                     st.cache_data.clear()
                     st.session_state["uploader_key"] += 1
                     st.session_state["scan_results"] = None 
@@ -176,7 +164,7 @@ def render_entry(worksheet, current_user):
                     st.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
                     st.rerun()
 
-    # --- BOTTOM SECTION: EDIT & DELETE RECENT ENTRIES ---
+    # --- BOTTOM SECTION: EDIT & DELETE WITH SORTING FILTERS ---
     st.markdown("---")
     st.subheader("🛠️ Διαχείριση & Διόρθωση Εγγραφών")
 
@@ -197,6 +185,34 @@ def render_entry(worksheet, current_user):
 
         if not user_df.empty:
             user_df["Sheet_Row"] = user_df.index + 2
+
+            # Προετοιμασία στηλών για ταξινόμηση
+            user_df["Numeric_Amount"] = pd.to_numeric(user_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+            user_df["Parsed_Date"] = pd.to_datetime(user_df["Ημερομηνία"], errors="coerce")
+
+            # --- ΧΕΙΡΙΣΤΗΡΙΟ ΤΑΞΙΝΟΜΗΣΗΣ ---
+            col_sort1, col_sort2 = st.columns([2, 1])
+            with col_sort1:
+                sort_option = st.selectbox(
+                    "📊 Ταξινόμηση εγγραφών κατά:",
+                    [
+                        "Ημερομηνία (Φθίνουσα - Νεότερες πρώτα)",
+                        "Ημερομηνία (Αύξουσα - Παλαιότερες πρώτα)",
+                        "Ποσό (Φθίνουσα - Μεγαλύτερα πρώτα)",
+                        "Ποσό (Αύξουσα - Μικρότερα πρώτα)"
+                    ],
+                    key="sort_option_select"
+                )
+
+            # Εφαρμογή Ταξινόμησης
+            if sort_option == "Ημερομηνία (Φθίνουσα - Νεότερες πρώτα)":
+                user_df = user_df.sort_values(by="Parsed_Date", ascending=False)
+            elif sort_option == "Ημερομηνία (Αύξουσα - Παλαιότερες πρώτα)":
+                user_df = user_df.sort_values(by="Parsed_Date", ascending=True)
+            elif sort_option == "Ποσό (Φθίνουσα - Μεγαλύτερα πρώτα)":
+                user_df = user_df.sort_values(by="Numeric_Amount", ascending=False)
+            elif sort_option == "Ποσό (Αύξουσα - Μικρότερα πρώτα)":
+                user_df = user_df.sort_values(by="Numeric_Amount", ascending=True)
 
             user_df["Select_Label"] = user_df.apply(
                 lambda r: f"Γραμμή {r['Sheet_Row']}: {r.get('Ημερομηνία', '')} | {r.get('Περιγραφή', '')} | {r.get('Ποσό', '')}€ ({r.get('Τύπος', '')})", axis=1
