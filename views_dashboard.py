@@ -7,7 +7,7 @@ import calendar
 def render_dashboard(worksheet, current_user, t=None):
     if t is None: t = {}
 
-    # CSS FIX ΓΙΑ ΝΑ ΜΗΝ ΚΟΒΟΝΤΑΙ ΤΑ TOOLTIPS ΣΤΑ ΚΙΝΗΤΑ
+    # CSS FIX για να μην κόβονται τα tooltips στα κινητά
     st.markdown("""
         <style>
             div[data-baseweb="popover"] {
@@ -60,6 +60,8 @@ def render_dashboard(worksheet, current_user, t=None):
 
     if "Ποσό" in df.columns:
         numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+        df["Clean_Amount"] = numeric_amounts
+        df["Ποσό (€)"] = numeric_amounts
     else:
         st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
         return
@@ -68,7 +70,7 @@ def render_dashboard(worksheet, current_user, t=None):
     cat_col = "Κατηγορία" if "Κατηγορία" in df.columns else None
 
     # --- HELPER LOGIC FOR SAFE TO SPEND ---
-    def calculate_fixed_expenses(data_df, amounts_series):
+    def calculate_fixed_expenses(data_df):
         if not cat_col or not type_col or data_df.empty:
             return 0.0
         
@@ -86,64 +88,11 @@ def render_dashboard(worksheet, current_user, t=None):
             clean_cats.str.contains("αποταμιευση", na=False) |
             clean_cats.str.contains("ενοικι", na=False)
         )
-        return amounts_series[fixed_mask].sum()
+        return data_df.loc[fixed_mask, "Clean_Amount"].sum()
 
-    # --- YΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΩΝ ΠΟΥ ΑΠΟΜΕΝΟΥΝ ΣΤΟΝ ΜΗΝΑ ---
-    today = datetime.date.today()
-    days_in_month = calendar.monthrange(today.year, today.month)[1]
-    days_remaining = max(1, days_in_month - today.day + 1)
-
-    # --- 1. TOP METRICS ---
-    total_income = numeric_amounts[df[type_col] == "Έσοδο"].sum() if type_col else 0.0
-    total_expense = numeric_amounts[df[type_col] == "Έξοδο"].sum() if type_col else 0.0
-    period_balance = total_income - total_expense
-
-    fixed_exp_total = calculate_fixed_expenses(df, numeric_amounts)
-    free_balance = max(0.0, period_balance - fixed_exp_total) if period_balance > 0 else 0.0
-    
-    daily_safe_to_spend = free_balance / days_remaining
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
-    col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
-    col3.metric(
-        "🟢 Safe to Spend / ημέρα", 
-        f"{daily_safe_to_spend:.2f} € / μέρα", 
-        help="Το ημερήσιο όριο εξόδων (μετά τα πάγια), για να μη βγείτε εκτός προϋπολογισμού."
-    )
-
-    # --- PROGRESS BAR YΠΟΛΟΓΙΣΜΟΣ ---
-    safe_ratio = 0.0
-    if total_income > 0:
-        safe_ratio = min(1.0, max(0.0, free_balance / total_income))
-
-    bar_color = "#28a745" # Πράσινο (>50%)
-    if safe_ratio < 0.20:
-        bar_color = "#dc3545" # Κόκκινο (<20%)
-    elif safe_ratio < 0.50:
-        bar_color = "#ffc107" # Πορτοκαλί (20%-50%)
-
-    st.markdown(f"""
-        <style>
-            div[data-testid="stProgress"] > div > div > div > div {{
-                background-color: {bar_color} !important;
-            }}
-        </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"**🛡️ Ημερήσιο Όριο & Περιθώριο ({days_remaining} μέρες απομένουν)**")
-    st.progress(safe_ratio)
-    st.caption(f"Συνολικό ελεύθερο υπόλοιπο: **{free_balance:.2f} €** ({safe_ratio * 100:.1f}% των εσόδων).")
-
-    if safe_ratio < 0.20 and total_income > 0:
-        st.warning("⚠️ **Προσοχή:** Το ημερήσιο διαθέσιμο ποσό βρίσκεται σε πολύ χαμηλά επίπεδα!")
-
-    st.markdown("---")
-
-    # --- 2. ΦΙΛΤΡΑ & ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ ---
-    st.subheader("📋 Εγγραφές & Φίλτρα Περιόδου")
-    
-    col_filter1, col_filter2, col_sort_compact = st.columns([2, 2, 3])
+    # --- 1. ΦΙΛΤΡΑ ΧΡΟΝΙΚΗΣ ΠΕΡΙΟΔΟΥ (ΕΠΑΝΩ) ---
+    st.markdown("#### 📅 Επιλογή Περιόδου")
+    col_filter1, col_filter2 = st.columns(2)
 
     available_years = sorted([y for y in df["Έτος"].unique() if y != "0"], reverse=True)
     year_options = [t.get("all", "Όλα")] + available_years
@@ -162,6 +111,64 @@ def render_dashboard(worksheet, current_user, t=None):
     if selected_month != t.get("all", "Όλοι"):
         filtered_df = filtered_df[filtered_df["Μήνας"] == selected_month]
 
+    st.markdown("---")
+
+    # --- YΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΩΝ ΠΟΥ ΑΠΟΜΕΝΟΥΝ ---
+    today = datetime.date.today()
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    days_remaining = max(1, days_in_month - today.day + 1)
+
+    # --- 2. DYNAMIC TOP METRICS (ΒΑΣΕΙ ΦΙΛΤΡΩΝ) ---
+    total_income = filtered_df[filtered_df[type_col] == "Έσοδο"]["Clean_Amount"].sum() if type_col else 0.0
+    total_expense = filtered_df[filtered_df[type_col] == "Έξοδο"]["Clean_Amount"].sum() if type_col else 0.0
+    period_balance = total_income - total_expense
+
+    fixed_exp = calculate_fixed_expenses(filtered_df)
+    free_balance = max(0.0, period_balance - fixed_exp) if period_balance > 0 else 0.0
+    
+    daily_safe_to_spend = free_balance / days_remaining
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
+    col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
+    col3.metric(
+        "🟢 Safe to Spend / ημέρα", 
+        f"{daily_safe_to_spend:.2f} € / μέρα", 
+        help="Το ημερήσιο όριο εξόδων (μετά τα πάγια), για να μη βγείτε εκτός προϋπολογισμού."
+    )
+
+    # Progress bar
+    safe_ratio = 0.0
+    if total_income > 0:
+        safe_ratio = min(1.0, max(0.0, free_balance / total_income))
+
+    bar_color = "#28a745"
+    if safe_ratio < 0.20:
+        bar_color = "#dc3545"
+    elif safe_ratio < 0.50:
+        bar_color = "#ffc107"
+
+    st.markdown(f"""
+        <style>
+            div[data-testid="stProgress"] > div > div > div > div {{
+                background-color: {bar_color} !important;
+            }}
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"**🛡️ Ημερήσιο Όριο & Περιθώριο ({days_remaining} μέρες απομένουν)**")
+    st.progress(safe_ratio)
+    st.caption(f"Συνολικό ελεύθερο υπόλοιπο περιόδου: **{free_balance:.2f} €** ({safe_ratio * 100:.1f}% των εσόδων).")
+
+    if safe_ratio < 0.20 and total_income > 0:
+        st.warning("⚠️ **Προσοχή:** Το ημερήσιο διαθέσιμο ποσό βρίσκεται σε πολύ χαμηλά επίπεδα!")
+
+    st.markdown("---")
+
+    # --- 3. ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ ΠΕΡΙΟΔΟΥ ---
+    col_tbl_head, col_sort_compact = st.columns([3, 2])
+    with col_tbl_head:
+        st.subheader("📋 Εγγραφές Περιόδου")
     with col_sort_compact:
         sort_order = st.selectbox(
             "⇅ Ταξινόμηση κατά",
@@ -172,9 +179,6 @@ def render_dashboard(worksheet, current_user, t=None):
     if filtered_df.empty:
         st.warning("Δεν βρέθηκαν εγγραφές για τη συγκεκριμένη περίοδο.")
         return
-
-    filtered_df["Clean_Amount"] = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
-    filtered_df["Ποσό (€)"] = filtered_df["Clean_Amount"]
 
     # Ταξινόμηση
     if sort_order == "Ημερομηνία (Νεότερες πρώτα)":
@@ -223,7 +227,7 @@ def render_dashboard(worksheet, current_user, t=None):
 
     st.markdown("---")
 
-    # --- 3. DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ ---
+    # --- 4. DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ ---
     st.subheader("📊 Επιλογή Διαγράμματος")
     chart_choice = st.selectbox(
         "Διάλεξε γράφημα για προβολή:",
