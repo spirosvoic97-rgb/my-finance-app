@@ -6,29 +6,31 @@ from io import BytesIO
 from PIL import Image, ImageOps
 from google import genai
 from pydantic import BaseModel, Field
-from typing import List, Literal
+from typing import List
 from config import INCOME_CATEGORIES, EXPENSE_CATEGORIES
 
+# Δυναμικό string για το Prompt ώστε το AI να διαλέγει ΑΚΡΙΒΩΣ τις κατηγορίες σου
+EXPENSE_CATS_STR = ", ".join([f"'{c}'" for c in EXPENSE_CATEGORIES])
+
 class ItemLine(BaseModel):
-    item_name: str = Field(description="Όνομα προϊόντος/υπηρεσίας")
-    price: float = Field(description="Τιμή μονάδας ή συνόλου γραμμής σε ευρώ")
+    item_name: str = Field(description="Το όνομα του προϊόντος ή της υπηρεσίας (π.χ. 'Γάλα', 'Βενζίνη').")
+    price: float = Field(description="Η τελική τιμή του προϊόντος/υπηρεσίας σε ευρώ. Μόνο νούμερο.")
 
 class ReceiptSchema(BaseModel):
-    amount: float = Field(description="Το τελικό συνολικό ποσό πληρωμής σε ευρώ (ΣΥΝΟΛΟ/TOTAL)")
-    description: str = Field(description="Το όνομα της επιχείρησης/καταστήματος")
-    category: Literal[
-        "Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", 
-        "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", 
-        "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"
-    ]
-    items: List[ItemLine] = Field(default=[], description="Λίστα με τα μεμονωμένα προϊόντα/υπηρεσίες της απόδειξης")
+    amount: float = Field(description="Το ΤΕΛΙΚΟ πληρωτέο ποσό σε ευρώ. Αγνοήσε μερικά σύνολα ή φόρους. Βρες το τελικό (ΣΥΝΟΛΟ/TOTAL).")
+    description: str = Field(description="Η επωνυμία του καταστήματος/επιχείρησης. Αν δεν διακρίνεται, γράψε 'Άγνωστο Κατάστημα'.")
+    category: str = Field(description=f"ΠΡΕΠΕΙ ΑΥΣΤΗΡΑ να είναι ΜΟΝΟ ΜΙΑ από αυτές τις επιλογές (copy-paste): {EXPENSE_CATS_STR}.")
+    items: List[ItemLine] = Field(default=[], description="Λίστα με τα προϊόντα. Αγνοήσε γραμμές που αφορούν φόρους (ΦΠΑ) ή ρέστα.")
 
 class AutoCategorySchema(BaseModel):
-    category: Literal[
-        "Super Market", "Αποταμίευση", "Διασκέδαση / Έξοδος", 
-        "Έκτακτα / Δώρα / Ταξίδια", "Μετακινήσεις", "Πάγια / Λογαριασμοί", 
-        "Προσωπικά / Χόμπι", "Επαγγελματικά Έξοδα"
-    ]
+    category: str = Field(description=f"ΠΡΕΠΕΙ ΑΥΣΤΗΡΑ να είναι ΜΟΝΟ ΜΙΑ από αυτές τις επιλογές: {EXPENSE_CATS_STR}.")
+
+def process_image_for_api(img, max_size=(1024, 1024)):
+    """Resize και συμπίεση εικόνας πριν την αποστολή στο API"""
+    img.thumbnail(max_size, Image.Resampling.LANCZOS)
+    img_byte_arr = BytesIO()
+    img.save(img_byte_arr, format='JPEG', quality=85)
+    return img_byte_arr.getvalue()
 
 def render_entry(worksheet, current_user):
     col_left, col_right = st.columns([1, 1])
@@ -49,10 +51,11 @@ def render_entry(worksheet, current_user):
                     client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
                     res = client.models.generate_content(
                         model='gemini-3.6-flash',
-                        contents=f"Κατηγοριοποίησε τη δαπάνη: '{description}'",
+                        contents=f"Ανάλυσε τη δαπάνη: '{description}'. Επίλεξε την πιο ταιριαστή κατηγορία.",
                         config={
                             'response_mime_type': 'application/json',
                             'response_schema': AutoCategorySchema,
+                            'temperature': 0.1
                         }
                     )
                     suggested_cat = json.loads(res.text).get("category")
@@ -60,8 +63,10 @@ def render_entry(worksheet, current_user):
                         suggested_idx = cats.index(suggested_cat)
                         st.session_state["selected_cat_idx"] = suggested_idx
                         st.success(f"🤖 Προτάθηκε: {suggested_cat}")
-                except Exception:
-                    pass
+                    else:
+                        st.warning("Το AI επέστρεψε άγνωστη κατηγορία.")
+                except Exception as e:
+                    st.error("⚠️ Αποτυχία σύνδεσης με AI.")
 
         current_idx = st.session_state.get("selected_cat_idx", 0)
         if current_idx >= len(cats): current_idx = 0
@@ -85,7 +90,7 @@ def render_entry(worksheet, current_user):
 
         uploaded_receipt = st.file_uploader("Ανέβασμα Απόδειξης (JPG/PNG)", type=["jpg", "png", "jpeg"], key=f"ocr_file_{st.session_state['uploader_key']}")
 
-        scanned_amount, scanned_desc, scanned_category = 0.0, "Απόδειξη", "Super Market"
+        scanned_amount, scanned_desc, scanned_category = 0.0, "Απόδειξη", EXPENSE_CATEGORIES[0]
         extracted_items = []
 
         if uploaded_receipt is not None:
@@ -93,17 +98,23 @@ def render_entry(worksheet, current_user):
             try: img = ImageOps.exif_transpose(img)
             except Exception: pass
 
-            st.image(img, caption="Απόδειξη", use_container_width=True)
+            st.image(img, caption="Απόδειξη προς Ανάλυση", use_container_width=True)
 
-            img_byte_arr = BytesIO()
-            img.save(img_byte_arr, format='JPEG')
-            img_bytes = img_byte_arr.getvalue()
+            # Συμπίεση/Resize εικόνας πριν την αποστολή στο API
+            img_bytes = process_image_for_api(img)
 
             if "GEMINI_API_KEY" in st.secrets and str(st.secrets["GEMINI_API_KEY"]).strip() != "":
                 try:
-                    with st.spinner("🤖 Η AI αναλύει την απόδειξη..."):
+                    with st.spinner("🤖 Η AI αναλύει την απόδειξη... (παρακαλώ περιμένετε)"):
                         client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                        prompt = "Ανάλυσε την απόδειξη. Εξάγαγε το συνολικό ποσό, το κατάστημα, την κατηγορία και τη λίστα προϊόντων."
+                        
+                        prompt = (
+                            "Λειτουργείς ως αυστηρός λογιστής. Διάβασε την απόδειξη."
+                            "1. Βρες το τελικό πληρωτέο ποσό."
+                            "2. Βρες την επωνυμία της επιχείρησης."
+                            "3. Επίλεξε ΑΥΣΤΗΡΑ μία από τις κατηγορίες που σου δόθηκαν στο schema."
+                            "4. Κατάγραψε τα προϊόντα (αγνόησε εκπτώσεις, ΦΠΑ, και ρέστα)."
+                        )
                         
                         response = client.models.generate_content(
                             model='gemini-3.6-flash',
@@ -111,23 +122,27 @@ def render_entry(worksheet, current_user):
                             config={
                                 'response_mime_type': 'application/json',
                                 'response_schema': ReceiptSchema,
+                                'temperature': 0.1
                             }
                         )
                         
                         parsed = json.loads(response.text)
                         scanned_amount = float(parsed.get("amount", 0.0))
-                        scanned_desc = str(parsed.get("description", "Απόδειξη"))
-                        scanned_category = str(parsed.get("category", "Super Market"))
+                        scanned_desc = str(parsed.get("description", "Άγνωστο Κατάστημα"))
+                        temp_category = str(parsed.get("category", EXPENSE_CATEGORIES[0]))
+                        
+                        # Σκληρός έλεγχος για να μην σπάσει το selectbox
+                        scanned_category = temp_category if temp_category in EXPENSE_CATEGORIES else EXPENSE_CATEGORIES[0]
                         extracted_items = parsed.get("items", [])
 
-                        st.success(f"✅ Εντοπίστηκε: {scanned_desc} - {scanned_amount:.2f}€")
+                        st.success(f"✅ Ανάλυση Ολοκληρώθηκε: {scanned_desc} - {scanned_amount:.2f}€")
                 except Exception as e:
-                    st.error(f"⚠️ Σφάλμα AI: {e}")
+                    st.error("⚠️ Σφάλμα AI κατά την ανάλυση: Σιγουρευτείτε ότι η εικόνα είναι καθαρή.")
 
-            st.markdown("**🔍 Επιβεβαίωση Σάρωσης:**")
+            st.markdown("**🔍 Επιβεβαίωση Δεδομένων:**")
             scanned_amount = st.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_tab")
             scanned_desc = st.text_input("Περιγραφή", value=scanned_desc, key="scan_desc_tab")
-            scanned_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(scanned_category) if scanned_category in EXPENSE_CATEGORIES else 0, key="scan_cat_tab")
+            scanned_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(scanned_category), key="scan_cat_tab")
 
             if extracted_items:
                 with st.expander("🛒 Αναλυτικά Προϊόντα Απόδειξης"):
@@ -155,7 +170,6 @@ def render_entry(worksheet, current_user):
         headers = [str(h).strip() for h in all_vals[0]]
         df = pd.DataFrame(all_vals[1:], columns=headers)
         
-        # Φιλτράρισμα μόνο για τις εγγραφές του τρέχοντος χρήστη
         if "Username" in df.columns:
             user_mask = df["Username"] == current_user
             user_df = df[user_mask].copy()
@@ -163,10 +177,8 @@ def render_entry(worksheet, current_user):
             user_df = df.copy()
 
         if not user_df.empty:
-            # Προσθήκη πραγματικού αριθμού γραμμής Sheet (1-based index)
             user_df["Sheet_Row"] = user_df.index + 2
 
-            # Δημιουργία φιλικής περιγραφής για την επιλογή
             user_df["Select_Label"] = user_df.apply(
                 lambda r: f"Γραμμή {r['Sheet_Row']}: {r.get('Ημερομηνία', '')} | {r.get('Περιγραφή', '')} | {r.get('Ποσό', '')}€ ({r.get('Τύπος', '')})", axis=1
             )
@@ -193,7 +205,6 @@ def render_entry(worksheet, current_user):
             with col_edit3:
                 st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("💾 Ενημέρωση Εγγραφής", key="btn_update_row"):
-                    # Ενημέρωση των κελιών στη συγκεκριμένη γραμμή
                     worksheet.update_cell(target_row_num, 2, edit_desc)
                     worksheet.update_cell(target_row_num, 3, edit_type)
                     worksheet.update_cell(target_row_num, 4, edit_cat)
