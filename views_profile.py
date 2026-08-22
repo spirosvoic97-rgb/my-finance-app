@@ -32,7 +32,7 @@ def send_email_attachment(to_email, subject, body, attachment_bytes=None, filena
     except Exception as e:
         return False, f"Σφάλμα αποστολής: {e}"
 
-def render_profile(users_sheet, worksheet, current_user):
+def render_profile(users_sheet, worksheet, current_user, t=None):
     st.subheader("⚙️ Διαχείριση Προφίλ & Υπηρεσίες Email")
     st.write(f"Συνδεδεμένος χρήστης: **{current_user}**")
     
