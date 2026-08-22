@@ -1,6 +1,5 @@
 import streamlit as st
 import datetime
-import re
 import json
 from io import BytesIO
 from PIL import Image, ImageOps
@@ -11,32 +10,6 @@ def render_entry(worksheet, current_user):
     col_left, col_right = st.columns([1, 1])
 
     with col_left:
-        st.subheader("⚡ Smart Quick Log")
-        quick_input = st.text_input("Γρήγορη Γραπτή Καταχώρηση (π.χ. 15 σουβλάκια)", key="quick_input_tab")
-
-        if st.button("⚡ Γρήγορη Προσθήκη", key="quick_btn_tab"):
-            if quick_input:
-                match = re.search(r"(\d+(?:\.\d+)?)", quick_input)
-                if match:
-                    extracted_amount = float(match.group(1))
-                    extracted_desc = quick_input.replace(match.group(1), "").strip()
-                    desc_lower = extracted_desc.lower()
-                    auto_type, auto_cat = "Έξοδο", "Διασκέδαση / Έξοδος"
-
-                    if any(w in desc_lower for w in ["ιδιαίτερα", "μισθός", "φροντιστήριο", "ωδείο", "έσοδο"]):
-                        auto_type = "Έσοδο"
-                        auto_cat = "Ιδιαίτερα" if "ιδιαίτερα" in desc_lower else "Άλλα Έσοδα / Έκτακτα"
-                    else:
-                        if any(w in desc_lower for w in ["super", "market", "φαγητό"]): auto_cat = "Super Market"
-                        elif any(w in desc_lower for w in ["βενζίνη", "κάρτα"]): auto_cat = "Μετακινήσεις"
-
-                    today_str = str(datetime.date.today())
-                    worksheet.append_row([today_str, extracted_desc if extracted_desc else "Γρήγορη Καταχώρηση", auto_type, auto_cat, extracted_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
-                    st.cache_data.clear()
-                    st.success(f"Προστέθηκε: {extracted_desc} - {extracted_amount}€")
-                    st.rerun()
-
-        st.markdown("---")
         st.subheader("➕ Χειροκίνητη Καταχώρηση")
         entry_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], horizontal=True, key="manual_type")
         date = st.date_input("Ημερομηνία", key="manual_date")
@@ -113,7 +86,7 @@ def render_entry(worksheet, current_user):
                 worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
                 st.cache_data.clear()
                 
-                # Καθαρισμός του uploader για επόμενη φωτογραφία
+                # Καθαρισμός του uploader για την επόμενη απόδειξη
                 st.session_state["uploader_key"] += 1
                 st.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
                 st.rerun()
