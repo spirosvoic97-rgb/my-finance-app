@@ -31,7 +31,7 @@ def render_dashboard(worksheet, current_user, t=None):
         return
 
     if "Ημερομηνία" in df.columns:
-        df["Date_Parsed"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce")
+        df["Date_Parsed"] = pd.to_datetime(df["Ημερομηνία"], format="%Y-%m-%d", errors="coerce")
         df["Έτος"] = df["Date_Parsed"].dt.year.fillna(0).astype(int).astype(str)
         df["Μήνας_Num"] = df["Date_Parsed"].dt.month.fillna(0).astype(int)
 
@@ -45,7 +45,7 @@ def render_dashboard(worksheet, current_user, t=None):
         st.warning("Δεν βρέθηκε στήλη 'Ημερομηνία'.")
         return
 
-    # --- 1. TOP METRICS (ΠΡΩΤΑ ΣΤΗΝ ΚΑΡΤΕΛΑ) ---
+    # --- 1. TOP METRICS ---
     if "Ποσό" in df.columns:
         numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     else:
@@ -81,7 +81,7 @@ def render_dashboard(worksheet, current_user, t=None):
 
     st.markdown("---")
 
-    # --- 2. ΦΙΛΤΡΑ & ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ (ΜΑΖΙ ΣΤΗ ΜΕΣΗ) ---
+    # --- 2. ΦΙΛΤΡΑ & ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ ---
     st.subheader("📋 Εγγραφές & Φίλτρα Περιόδου")
     
     col_filter1, col_filter2, col_sort_compact = st.columns([2, 2, 3])
@@ -140,20 +140,20 @@ def render_dashboard(worksheet, current_user, t=None):
     filtered_df["Clean_Amount"] = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     filtered_df["Ποσό (€)"] = filtered_df["Clean_Amount"]
 
-    # ΕΦΑΡΜΟΓΗ ΔΙΟΡΘΩΜΕΝΗΣ ΤΑΞΙΝΟΜΗΣΗΣ (Νεότερες πρώτα = Στην κορυφή)
+    # ΑΥΣΤΗΡΗ ΤΑΞΙΝΟΜΗΣΗ
     if sort_order == "Ημερομηνία (Νεότερες πρώτα)":
-        filtered_df = filtered_df.sort_values(by="Date_Parsed", ascending=False)
+        filtered_df = filtered_df.sort_values(by=["Date_Parsed"], ascending=False)
     elif sort_order == "Ημερομηνία (Παλαιότερες πρώτα)":
-        filtered_df = filtered_df.sort_values(by="Date_Parsed", ascending=True)
+        filtered_df = filtered_df.sort_values(by=["Date_Parsed"], ascending=True)
     elif sort_order == "Ποσό (Μεγαλύτερα)":
-        filtered_df = filtered_df.sort_values(by="Clean_Amount", ascending=False)
+        filtered_df = filtered_df.sort_values(by=["Clean_Amount"], ascending=False)
     elif sort_order == "Ποσό (Μικρότερα)":
-        filtered_df = filtered_df.sort_values(by="Clean_Amount", ascending=True)
+        filtered_df = filtered_df.sort_values(by=["Clean_Amount"], ascending=True)
 
     desired_cols = ["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]
     available_cols = [c for c in desired_cols if c in filtered_df.columns]
 
-    # --- PAGINATION LOGIC (10 εγγραφές ανά σελίδα) ---
+    # PAGINATION (10 εγγραφές ανά σελίδα)
     ITEMS_PER_PAGE = 10
     total_items = len(filtered_df)
     total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
@@ -168,7 +168,8 @@ def render_dashboard(worksheet, current_user, t=None):
     end_idx = start_idx + ITEMS_PER_PAGE
     page_df = filtered_df.iloc[start_idx:end_idx]
 
-    st.table(page_df[available_cols].astype(str))
+    # ΕΜΦΑΝΙΣΗ ΠΙΝΑΚΑ ΧΩΡΙΣ ΤΟΥΣ ΑΡΙΘΜΟΥΣ ΤΗΣ ΠΡΩΤΗΣ ΣΤΗΛΗΣ (INDEX)
+    st.dataframe(page_df[available_cols], use_container_width=True, hide_index=True)
 
     # Κουμπιά Σελιδοποίησης
     col_prev, col_info, col_next = st.columns([1, 2, 1])
@@ -187,7 +188,7 @@ def render_dashboard(worksheet, current_user, t=None):
 
     st.markdown("---")
 
-    # --- 3. DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ (ΚΑΤΩ) ---
+    # --- 3. DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ ---
     st.subheader("📊 Επιλογή Διαγράμματος")
     chart_choice = st.selectbox(
         "Διάλεξε γράφημα για προβολή:",
