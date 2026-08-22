@@ -63,13 +63,8 @@ def render_dashboard(worksheet, current_user, t=None):
             data_df[cat_col]
             .astype(str)
             .str.lower()
-            .str.replace("ά", "α")
-            .str.replace("έ", "ε")
-            .str.replace("ή", "η")
-            .str.replace("ί", "ι")
-            .str.replace("ό", "ο")
-            .str.replace("ύ", "υ")
-            .str.replace("ώ", "ω")
+            .str.replace("ά", "α").str.replace("έ", "ε").str.replace("ή", "η")
+            .str.replace("ί", "ι").str.replace("ό", "ο").str.replace("ύ", "υ").str.replace("ώ", "ω")
         )
         
         fixed_mask = (data_df[type_col] == "Έξοδο") & (
@@ -93,14 +88,33 @@ def render_dashboard(worksheet, current_user, t=None):
     metric_exp = col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
     metric_safe = col3.metric("🟢 Safe to Spend", f"{safe_to_spend_total:.2f} €", help="Διαθέσιμο υπόλοιπο μείων τα Πάγια/Λογαριασμούς & Αποταμίευση")
 
-    # --- PROGRESS BAR YΠΟΛΟΓΙΣΜΟΣ ---
+    # --- PROGRESS BAR & COLOR INJECTION ---
     safe_ratio = 0.0
     if total_income > 0:
         safe_ratio = min(1.0, max(0.0, safe_to_spend_total / total_income))
 
+    # Χρώμα Μπάρας βάσει ποσοστού
+    bar_color = "#28a745" # Πράσινο (>50%)
+    if safe_ratio < 0.20:
+        bar_color = "#dc3545" # Κόκκινο (<20%)
+    elif safe_ratio < 0.50:
+        bar_color = "#ffc107" # Πορτοκαλί (20%-50%)
+
+    st.markdown(f"""
+        <style>
+            div[data-testid="stProgress"] > div > div > div > div {{
+                background-color: {bar_color} !important;
+            }}
+        </style>
+    """, unsafe_allow_html=True)
+
     st.markdown("**🛡️ Safe to Spend Margin**")
     st.progress(safe_ratio)
     st.caption(f"Διαθέσιμο για ελεύθερη κατανάλωση: **{safe_ratio * 100:.1f}%** των συνολικών εσόδων.")
+
+    # Ειδοποίηση αν πέσει κάτω από 20%
+    if safe_ratio < 0.20 and total_income > 0:
+        st.warning("⚠️ **Προσοχή:** Το περιθώριο ελεύθερων δαπανών σας βρίσκεται κάτω από το 20% των εσόδων σας!")
 
     st.markdown("---")
 
