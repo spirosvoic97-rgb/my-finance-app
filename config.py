@@ -46,9 +46,11 @@ def get_sheets_connection():
         if (raw_b64.startswith('"') and raw_b64.endswith('"')) or (raw_b64.startswith("'") and raw_b64.endswith("'")):
             raw_b64 = raw_b64[1:-1]
 
+        # FIX: Αυτόματη προσθήκη padding αν λείπει
+        raw_b64 += "=" * ((4 - len(raw_b64) % 4) % 4)
+
         # 3. Αποκωδικοποίηση Base64
         decoded_bytes = base64.b64decode(raw_b64)
-        creds_info = json.loads(decoded_bytes.decode("utf-8"))
 
         credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
         client = gspread.authorize(credentials)
