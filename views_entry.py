@@ -26,7 +26,11 @@ class AutoCategorySchema(BaseModel):
     category: str = Field(description=f"ΠΡΕΠΕΙ ΑΥΣΤΗΡΑ να είναι ΜΟΝΟ ΜΙΑ από αυτές τις επιλογές: {EXPENSE_CATS_STR}.")
 
 def process_image_for_api(img, max_size=(1024, 1024)):
-    """Resize και συμπίεση εικόνας πριν την αποστολή στο API"""
+    """Resize, μετατροπή σε RGB (αν χρειάζεται) και συμπίεση εικόνας πριν την αποστολή στο API"""
+    # Αν η εικόνα έχει διαφάνεια (RGBA ή P), την κάνουμε κανονικό RGB
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+        
     img.thumbnail(max_size, Image.Resampling.LANCZOS)
     img_byte_arr = BytesIO()
     img.save(img_byte_arr, format='JPEG', quality=85)
