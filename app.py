@@ -16,19 +16,23 @@ st.set_page_config(
     page_title="Personal Finance App",
     page_icon="💰",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- CSS INJECTION: HIDE STREAMLIT TOOLBAR & TOP MENU ---
+# --- CSS INJECTION: HIDE TOOLBAR BUT KEEP SIDEBAR TOGGLE ---
 st.markdown("""
     <style>
         #MainMenu {visibility: hidden;}
-        header {visibility: hidden;}
         footer {visibility: hidden;}
         .stDeployButton {display:none;}
         div[data-testid="stDecoration"] {display:none;}
-        div[data-testid="stToolbar"] {visibility: hidden !important;}
         div[data-testid="stStatusWidget"] {visibility: hidden !important;}
+        
+        /* Εξασφάλιση ότι το κουμπί/βέλος του Sidebar παραμένει ορατό */
+        button[data-testid="stSidebarCollapseButton"] {
+            visibility: visible !important;
+            display: block !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -144,7 +148,6 @@ def check_password(users_sheet):
     if "auth_mode" not in st.session_state:
         st.session_state["auth_mode"] = "login"
 
-    # Top Bar Language Switcher
     col_space, col_lang = st.columns([5, 1])
     with col_lang:
         selected_lang = st.selectbox("🌐", ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="auth_lang_select")
@@ -320,12 +323,11 @@ if check_password(users_sheet):
     user_balance = get_current_balance(worksheet, current_user)
     t = TRANSLATIONS[st.session_state["lang"]]
 
-    # --- SIDEBAR (ΓΡΑΝΑΖΙ / ΡΥΘΜΙΣΕΙΣ / LOGOUT) ---
+    # --- SIDEBAR MENU ---
     with st.sidebar:
         st.title(f"👤 {current_user}")
         st.markdown("---")
         
-        # Εναλλαγή Γλώσσας στο Sidebar
         selected_lang = st.selectbox(t["language"], ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="sidebar_lang")
         if selected_lang != st.session_state["lang"]:
             st.session_state["lang"] = selected_lang
@@ -333,12 +335,10 @@ if check_password(users_sheet):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Κουμπί για μετάβαση στο Προφίλ / Ρυθμίσεις
         show_settings = st.checkbox(t["settings"], value=st.session_state.get("show_profile_page", False))
         st.session_state["show_profile_page"] = show_settings
 
         st.markdown("---")
-        # Αποσύνδεση
         if st.button(t["logout"], use_container_width=True):
             st.session_state["password_correct"] = False
             st.session_state["current_user"] = None
@@ -354,7 +354,6 @@ if check_password(users_sheet):
         
     st.markdown("---")
 
-    # Αν ο χρήστης τσεκάρει το Γρανάζι στο Sidebar, δείχνουμε το Προφίλ
     if st.session_state.get("show_profile_page", False):
         st.subheader(t["settings"])
         render_profile(users_sheet, worksheet, current_user)
