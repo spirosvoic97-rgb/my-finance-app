@@ -51,6 +51,7 @@ def get_sheets_connection():
 
         # 3. Αποκωδικοποίηση Base64
         decoded_bytes = base64.b64decode(raw_b64)
+        creds_info = json.loads(decoded_bytes.decode("utf-8"))
 
         credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
         client = gspread.authorize(credentials)
