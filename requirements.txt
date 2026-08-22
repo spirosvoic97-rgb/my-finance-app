@@ -1,9 +1,4 @@
 streamlit
-gspread
-google-auth
-google-genai
-pillow
-pydantic
 pandas
 plotly
-openpyxl
+bcrypt
