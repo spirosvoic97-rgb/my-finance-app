@@ -1,7 +1,5 @@
 import streamlit as st
 import gspread
-import json
-import base64
 from google.oauth2.service_account import Credentials
 
 ICON_URL = "https://cdn-icons-png.flaticon.com/512/2953/2953361.png"
@@ -37,21 +35,16 @@ def get_sheets_connection():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # Έλεγχος για private_key_b64
-        if "gcp_service_account" in st.secrets and "private_key_b64" in st.secrets["gcp_service_account"]:
-            b64_str = st.secrets["gcp_service_account"]["private_key_b64"].strip()
-            # Αποκωδικοποίηση Base64 JSON
-            json_bytes = base64.b64decode(b64_str)
-            creds_info = json.loads(json_bytes.decode("utf-8"))
-            credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
-        elif "gcp_service_account" in st.secrets:
-            creds_dict = dict(st.secrets["gcp_service_account"])
-            if "private_key" in creds_dict:
-                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-            credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        else:
-            raise Exception("Δεν βρέθηκαν τα [gcp_service_account] στα Secrets.")
+        if "gcp_service_account" not in st.secrets:
+            raise Exception("Δεν βρέθηκε το [gcp_service_account] στα Streamlit Secrets.")
 
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        
+        # Αντικατάσταση διπλών backslashes αν υπάρχουν
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(credentials)
 
         # Σύνδεση με το Google Sheet
