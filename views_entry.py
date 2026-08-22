@@ -86,7 +86,6 @@ def render_entry(worksheet, current_user):
                             "category": <string, μία από: {EXPENSE_CATEGORIES}>
                         }}
                         """
-                        # ✅ ΣΩΣΤΟ:
                         response = client.models.generate_content(
                             model='gemini-2.5-flash',
                             contents=[prompt, genai.types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')]
