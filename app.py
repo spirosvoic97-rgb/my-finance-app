@@ -140,9 +140,16 @@ def check_password(users_sheet):
     return False
 
 # --- HELPER: CALCULATE CURRENT BALANCE ---
+@st.cache_data(ttl=600)
+def get_cached_sheet_data(_worksheet):
+    """Κατεβάζει τα δεδομένα από το Excel και τα κρατάει στη μνήμη για 10 λεπτά."""
+    return _worksheet.get_all_values()
+
 def get_current_balance(worksheet, current_user):
     try:
-        data = worksheet.get_all_values()
+        # Χρησιμοποιούμε τη cached συνάρτηση αντί να χτυπάμε το API της Google σε κάθε κλικ
+        data = get_cached_sheet_data(worksheet)
+        
         if not data or len(data) <= 1:
             return 0.0
         
@@ -161,7 +168,8 @@ def get_current_balance(worksheet, current_user):
         total_expense = numeric_amounts[df["Τύπος"] == "Έξοδο"].sum()
         
         return total_income - total_expense
-    except Exception:
+    except Exception as e:
+        st.error(f"Σφάλμα υπολογισμού υπολοίπου: {e}")
         return 0.0
 
 # --- MAIN APP ROUTING ---
