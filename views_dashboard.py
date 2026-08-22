@@ -15,14 +15,12 @@ def render_dashboard(worksheet, current_user):
         st.info("Δεν υπάρχουν ακόμα εγγραφές στο Google Sheet.")
         return
 
-    # Καθαρισμός επικεφαλίδων
     raw_headers = data[0]
     clean_headers = [str(h).strip() if str(h).strip() else f"Col_{i+1}" for i, h in enumerate(raw_headers)]
 
     rows = data[1:]
     df = pd.DataFrame(rows, columns=clean_headers)
 
-    # Φιλτράρισμα ανά χρήστη
     if "Username" in df.columns:
         df = df[df["Username"] == current_user]
 
@@ -30,7 +28,6 @@ def render_dashboard(worksheet, current_user):
         st.info(f"Δεν βρέθηκαν εγγραφές για τον χρήστη {current_user}.")
         return
 
-    # Μετατροπή Ημερομηνίας
     if "Ημερομηνία" in df.columns:
         df["Date_Parsed"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce")
         df["Έτος"] = df["Date_Parsed"].dt.year.fillna(0).astype(int).astype(str)
@@ -75,21 +72,19 @@ def render_dashboard(worksheet, current_user):
         st.warning("Δεν βρέθηκαν εγγραφές για τη συγκεκριμένη περίοδο.")
         return
 
-    # Μετατροπή Ποσού σε αριθμό
     if "Ποσό" in filtered_df.columns:
         numeric_amounts = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     else:
         st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
         return
 
-    # Υπολογισμός Συνόλων Περιόδου
     type_col = "Τύπος" if "Τύπος" in filtered_df.columns else None
+    cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
+
     total_income = numeric_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
     total_expense = numeric_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
     period_balance = total_income - total_expense
 
-    # Υπολογισμός Safe to Spend (Υπόλοιπο - Πάγια/Αποταμίευση)
-    cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
     fixed_expenses = 0.0
     if cat_col and type_col:
         fixed_mask = (filtered_df[type_col] == "Έξοδο") & (filtered_df[cat_col].isin(["Πάγια / Λογαριασμοί", "Αποταμίευση"]))
@@ -97,7 +92,6 @@ def render_dashboard(worksheet, current_user):
 
     safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
 
-    # Εμφάνιση Metrics
     col1, col2, col3 = st.columns(3)
     col1.metric("💰 Έσοδα Περιόδου", f"{total_income:.2f} €")
     col2.metric("💸 Έξοδα Περιόδου", f"{total_expense:.2f} €")
@@ -105,36 +99,70 @@ def render_dashboard(worksheet, current_user):
 
     st.markdown("---")
 
-    # ΠΙΤΑ ΕΞΟΔΩΝ ΜΕ PLOTLY (XΩΡΙΣ ΑΥΤΟΜΑΤΟ ZOOM)
-    if type_col and cat_col:
-        df_expenses_mask = filtered_df[type_col] == "Έξοδο"
-        if df_expenses_mask.any():
-            st.subheader("📉 Κατανομή Εξόδων (Πίτα)")
-            df_chart = pd.DataFrame({
-                "Κατηγορία": filtered_df.loc[df_expenses_mask, cat_col],
-                "Ποσό": numeric_amounts[df_expenses_mask]
-            })
-            cat_summary = df_chart.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
+    # --- DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ ---
+    st.subheader("📊 Επιλογή Διαγράμματος")
+    chart_choice = st.selectbox(
+        "Διάλεξε γράφημα για προβολή:",
+        [
+            "📉 Κατανομή Εξόδων (Πίτα)",
+            "📈 Κατανομή Εσόδων (Πίτα)",
+            "📊 Έξοδα ανά Κατηγορία (Ράβδοι)",
+            "📊 Σωρευτικό Διάγραμμα Εξόδων (Stacked)",
+            "⚖️ Σύγκριση Εσόδων vs Εξόδων"
+        ],
+        key="chart_selector"
+    )
 
-            # Δημιουργία Donut/Pie Chart
-            fig = px.pie(
-                cat_summary, 
-                values="Ποσό", 
-                names="Κατηγορία", 
-                hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
+    filtered_df["Clean_Amount"] = numeric_amounts
+
+    if chart_choice == "📉 Κατανομή Εξόδων (Πίτα)":
+        df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
+        if not df_exp.empty:
+            cat_sum = df_exp.groupby(cat_col)["Clean_Amount"].sum().reset_index()
+            fig = px.pie(cat_sum, values="Clean_Amount", names=cat_col, hole=0.4, title="Κατανομή Εξόδων ανά Κατηγορία")
             fig.update_traces(textposition='inside', textinfo='percent+label')
-            fig.update_layout(
-                showlegend=True,
-                margin=dict(t=10, b=10, l=10, r=10),
-                dragmode=False  # Απενεργοποίηση Drag/Zoom για κινητά
-            )
+            fig.update_layout(dragmode=False)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Δεν υπάρχουν έξοδα για προβολή.")
 
-            # Προβολή με απενεργοποιημένο το interactive toolbar
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
+    elif chart_choice == "📈 Κατανομή Εσόδων (Πίτα)":
+        df_inc = filtered_df[filtered_df[type_col] == "Έσοδο"]
+        if not df_inc.empty:
+            cat_sum = df_inc.groupby(cat_col)["Clean_Amount"].sum().reset_index()
+            fig = px.pie(cat_sum, values="Clean_Amount", names=cat_col, hole=0.4, title="Κατανομή Εσόδων ανά Κατηγορία")
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_layout(dragmode=False)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Δεν υπάρχουν έσοδα για προβολή.")
 
-    # Πίνακας Εγγραφών (ΜΟΝΟ οι 5 βασικές στήλες)
+    elif chart_choice == "📊 Έξοδα ανά Κατηγορία (Ράβδοι)":
+        df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
+        if not df_exp.empty:
+            cat_sum = df_exp.groupby(cat_col)["Clean_Amount"].sum().reset_index()
+            fig = px.bar(cat_sum, x=cat_col, y="Clean_Amount", color=cat_col, title="Έξοδα ανά Κατηγορία", text_auto='.2f')
+            fig.update_layout(dragmode=False, showlegend=False)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Δεν υπάρχουν έξοδα για προβολή.")
+
+    elif chart_choice == "📊 Σωρευτικό Διάγραμμα Εξόδων (Stacked)":
+        df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
+        if not df_exp.empty:
+            fig = px.bar(df_exp, x="Μήνας", y="Clean_Amount", color=cat_col, title="Σωρευτική Ανάλυση Εξόδων ανά Μήνα", barmode="stack")
+            fig.update_layout(dragmode=False)
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        else:
+            st.info("Δεν υπάρχουν έξοδα για προβολή.")
+
+    elif chart_choice == "⚖️ Σύγκριση Εσόδων vs Εξόδων":
+        type_sum = filtered_df.groupby([type_col, "Μήνας"])["Clean_Amount"].sum().reset_index()
+        fig = px.bar(type_sum, x="Μήνας", y="Clean_Amount", color=type_col, barmode="group", title="Σύγκριση Εσόδων & Εξόδων ανά Μήνα", text_auto='.2f')
+        fig.update_layout(dragmode=False)
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+    # Πίνακας Εγγραφών
     st.markdown("---")
     st.subheader("📋 Εγγραφές Περιόδου")
     
