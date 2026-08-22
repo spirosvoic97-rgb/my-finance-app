@@ -59,7 +59,6 @@ def render_dashboard(worksheet, current_user, t=None):
         if not cat_col or not type_col or data_df.empty:
             return 0.0
         
-        # Καθαρισμός κειμένου κατηγοριών (μικρά, χωρίς τόνους)
         clean_cats = (
             data_df[cat_col]
             .astype(str)
@@ -73,7 +72,6 @@ def render_dashboard(worksheet, current_user, t=None):
             .str.replace("ώ", "ω")
         )
         
-        # Αναζήτηση λέξεων κλειδιών για Πάγια & Αποταμίευση
         fixed_mask = (data_df[type_col] == "Έξοδο") & (
             clean_cats.str.contains("παγια", na=False) | 
             clean_cats.str.contains("λογαριασμ", na=False) | 
@@ -94,6 +92,15 @@ def render_dashboard(worksheet, current_user, t=None):
     metric_inc = col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
     metric_exp = col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
     metric_safe = col3.metric("🟢 Safe to Spend", f"{safe_to_spend_total:.2f} €", help="Διαθέσιμο υπόλοιπο μείων τα Πάγια/Λογαριασμούς & Αποταμίευση")
+
+    # --- PROGRESS BAR YΠΟΛΟΓΙΣΜΟΣ ---
+    safe_ratio = 0.0
+    if total_income > 0:
+        safe_ratio = min(1.0, max(0.0, safe_to_spend_total / total_income))
+
+    st.markdown("**🛡️ Safe to Spend Margin**")
+    st.progress(safe_ratio)
+    st.caption(f"Διαθέσιμο για ελεύθερη κατανάλωση: **{safe_ratio * 100:.1f}%** των συνολικών εσόδων.")
 
     st.markdown("---")
 
