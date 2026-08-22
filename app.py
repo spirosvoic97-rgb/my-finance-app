@@ -1,8 +1,8 @@
 import streamlit as st
 from config import ICON_URL, get_sheets_connection
 from views_entry import render_entry
-from views_reports import render_reports
-from views_settings import render_settings
+from views_dashboard import render_dashboard
+from views_profile import render_profile
 from views_chat import render_chat
 
 # --- PAGE CONFIGURATION ---
@@ -36,7 +36,6 @@ def check_password():
 if check_password():
     current_user = st.session_state["current_user"]
 
-    # Header section
     col_header1, col_header2 = st.columns([1, 8])
     with col_header1:
         st.image(ICON_URL, width=60)
@@ -44,7 +43,6 @@ if check_password():
         st.title("💰 Personal Finance Tracker")
         st.caption(f"Καλώς ήρθες, **{current_user}**!")
 
-    # Load Google Sheets connection
     try:
         worksheet, users_sheet = get_sheets_connection()
     except Exception as e:
@@ -54,8 +52,8 @@ if check_password():
     # --- APP NAVIGATION TABS ---
     tab1, tab2, tab3, tab4 = st.tabs([
         "➕ Καταχώρηση", 
-        "📊 Αναφορές", 
-        "⚙️ Ρυθμίσεις", 
+        "📊 Analytics", 
+        "⚙️ Προφίλ", 
         "💬 AI Assistant"
     ])
 
@@ -63,10 +61,10 @@ if check_password():
         render_entry(worksheet, current_user)
 
     with tab2:
-        render_reports(worksheet, current_user)
+        render_dashboard(worksheet, current_user)
 
     with tab3:
-        render_settings(users_sheet, current_user)
+        render_profile(users_sheet, current_user)
 
     with tab4:
         render_chat(worksheet, current_user)
