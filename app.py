@@ -18,23 +18,88 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- TRANSLATIONS (i18n) ---
+TRANSLATIONS = {
+    "EL": {
+        "login_title": "🔐 Σύνδεση στο Finance App",
+        "signup_title": "📝 Δημιουργία Νέου Λογαριασμού",
+        "reset_title": "🔑 Ανάκτηση Κωδικού",
+        "username": "Όνομα Χρήστη (Username)",
+        "password": "Κωδικός Πρόσβασης (Password)",
+        "confirm_pass": "Επιβεβαίωση Κωδικού",
+        "email": "Email",
+        "login_btn": "Σύνδεση",
+        "signup_btn": "Δημιουργία Λογαριασμού",
+        "reset_btn": "Αποστολή Προσωρινού Κωδικού",
+        "no_account": "Δεν έχεις λογαριασμό; Εγγραφή",
+        "have_account": "Έχεις ήδη λογαριασμό; Σύνδεση",
+        "forgot_pass": "Ξέχασες τον κωδικό σου;",
+        "pass_rules": "Ο κωδικός πρέπει να έχει: τουλ. 8 χαρακτήρες, 1 κεφαλαίο, 1 αριθμό, 1 σύμβολο.",
+        "fill_all": "⚠️ Συμπληρώστε όλα τα πεδία.",
+        "invalid_email": "❌ Παρακαλώ εισάγετε ένα έγκυρο Email.",
+        "pass_mismatch": "❌ Οι κωδικοί δεν ταιριάζουν.",
+        "signup_success": "🎉 Ο λογαριασμός δημιουργήθηκε επιτυχώς! Μπορείτε να συνδεθείτε.",
+        "wrong_pass": "❌ Λανθασμένος Κωδικός Πρόσβασης.",
+        "user_not_found": "❌ Δεν βρέθηκε χρήστης με αυτό το όνομα.",
+        "reset_sent": "✅ Ο νέος κωδικός στάλθηκε στο email σας!",
+        "nav_entry": "➕ Καταχώρηση",
+        "nav_analytics": "📊 Analytics",
+        "nav_profile": "⚙️ Προφίλ",
+        "nav_ai": "💬 AI Assistant",
+        "balance": "💳 Διαθέσιμο Υπόλοιπο"
+    },
+    "EN": {
+        "login_title": "🔐 Login to Finance App",
+        "signup_title": "📝 Create New Account",
+        "reset_title": "🔑 Password Recovery",
+        "username": "Username",
+        "password": "Password",
+        "confirm_pass": "Confirm Password",
+        "email": "Email",
+        "login_btn": "Login",
+        "signup_btn": "Create Account",
+        "reset_btn": "Send Temporary Password",
+        "no_account": "Don't have an account? Sign Up",
+        "have_account": "Already have an account? Login",
+        "forgot_pass": "Forgot password?",
+        "pass_rules": "Password must contain: min 8 chars, 1 uppercase, 1 number, 1 symbol.",
+        "fill_all": "⚠️ Please fill in all fields.",
+        "invalid_email": "❌ Please enter a valid Email.",
+        "pass_mismatch": "❌ Passwords do not match.",
+        "signup_success": "🎉 Account created successfully! You can now login.",
+        "wrong_pass": "❌ Incorrect Password.",
+        "user_not_found": "❌ User not found.",
+        "reset_sent": "✅ A new temporary password was sent to your email!",
+        "nav_entry": "➕ Entries",
+        "nav_analytics": "📊 Analytics",
+        "nav_profile": "⚙️ Profile",
+        "nav_ai": "💬 AI Assistant",
+        "balance": "💳 Available Balance"
+    }
+}
+
+# --- LANGUAGE SELECTOR IN SESSION STATE ---
+if "lang" not in st.session_state:
+    st.session_state["lang"] = "EL"
+
+t = TRANSLATIONS[st.session_state["lang"]]
+
 # --- HELPER: PASSWORD STRENGTH CHECKER ---
 def is_strong_password(password):
-    """Ελέγχει αν ο κωδικός πληροί τους αυστηρούς κανόνες ασφαλείας."""
     if len(password) < 8:
-        return False, "Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες."
+        return False, "Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες / Min 8 characters."
     if not any(c.isupper() for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 κεφαλαίο γράμμα."
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 κεφαλαίο γράμμα / At least 1 uppercase letter."
     if not any(c.isdigit() for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 αριθμό."
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 αριθμό / At least 1 number."
     if not any(c in string.punctuation for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο (π.χ. @, #, $, %, !)."
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο / At least 1 symbol (@, #, $, etc)."
     return True, ""
 
 # --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
 def send_email(to_email, subject, body):
     if "email" not in st.secrets:
-        return False, "Δεν έχουν ρυθμιστεί τα Email Secrets."
+        return False, "Missing Email Secrets."
     try:
         conf = st.secrets["email"]
         msg = MIMEText(body, "html", "utf-8")
@@ -47,140 +112,163 @@ def send_email(to_email, subject, body):
         server.login(conf["sender_email"], conf["sender_password"])
         server.send_message(msg)
         server.quit()
-        return True, "Το email στάλθηκε επιτυχώς!"
+        return True, "Email sent successfully!"
     except Exception as e:
-        return False, f"Σφάλμα αποστολής: {e}"
+        return False, f"Email error: {e}"
 
-# --- LOGIN & SIGNUP AUTHENTICATION LOGIC ---
+# --- SINGLE AUTHENTICATION SCREEN LOGIC ---
 def check_password(users_sheet):
     if st.session_state.get("password_correct", False):
         return True
 
-    tab_login, tab_signup, tab_reset = st.tabs(["🔐 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη", "🔑 Ανάκτηση Κωδικού"])
+    # Initialize Mode
+    if "auth_mode" not in st.session_state:
+        st.session_state["auth_mode"] = "login"
 
-    # LOGIN TAB
-    with tab_login:
-        st.markdown("### 🔐 Σύνδεση στο Finance App")
-        with st.form(key="login_form"):
-            username_input = st.text_input("Όνομα Χρήστη (Username)").strip()
-            password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password")
-            
-            submit_login = st.form_submit_button("Σύνδεση")
+    # Top Bar Language Switcher
+    col_space, col_lang = st.columns([5, 1])
+    with col_lang:
+        selected_lang = st.selectbox("🌐 Language", ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="lang_select")
+        if selected_lang != st.session_state["lang"]:
+            st.session_state["lang"] = selected_lang
+            st.rerun()
 
-            if submit_login:
-                if not username_input or not password_input:
-                    st.warning("⚠️ Συμπληρώστε και τα δύο πεδία.")
-                else:
-                    sheet_users = {}
-                    try:
-                        u_data = users_sheet.get_all_values()
-                        if len(u_data) > 1:
-                            for row in u_data[1:]:
-                                if len(row) >= 3:
-                                    em = str(row[0]).strip().lower()
-                                    pw = str(row[1]).strip()
-                                    uname = str(row[2]).strip()
-                                    sheet_users[uname] = {"pass": pw, "email": em}
-                    except Exception:
-                        pass
+    t = TRANSLATIONS[st.session_state["lang"]]
 
-                    if username_input in sheet_users:
-                        stored_hash = sheet_users[username_input]["pass"]
-                        try:
-                            if bcrypt.checkpw(password_input.encode('utf-8'), stored_hash.encode('utf-8')):
-                                st.session_state["password_correct"] = True
-                                st.session_state["current_user"] = username_input
-                                st.session_state["user_email"] = sheet_users[username_input]["email"]
-                                st.rerun()
-                            else:
-                                st.error("❌ Λανθασμένος Κωδικός Πρόσβασης.")
-                        except ValueError:
-                            st.error("❌ Βρέθηκε παλιός, μη κρυπτογραφημένος κωδικός. Διαγράψτε τον χρήστη από το Excel και κάντε νέα εγγραφή.")
+    col_main, _ = st.columns([2, 1])
+    with col_main:
+        # MODE 1: LOGIN
+        if st.session_state["auth_mode"] == "login":
+            st.markdown(f"### {t['login_title']}")
+            with st.form(key="login_form"):
+                username_input = st.text_input(t["username"]).strip()
+                password_input = st.text_input(t["password"], type="password")
+                submit_login = st.form_submit_button(t["login_btn"])
+
+                if submit_login:
+                    if not username_input or not password_input:
+                        st.warning(t["fill_all"])
                     else:
-                        st.error("❌ Δεν βρέθηκε χρήστης με αυτό το όνομα.")
-
-    # SIGNUP TAB
-    with tab_signup:
-        st.markdown("### 📝 Δημιουργία Νέου Λογαριασμού")
-        with st.form(key="signup_form"):
-            new_email = st.text_input("Email").strip().lower()
-            new_user = st.text_input("Όνομα Χρήστη (Username)").strip()
-            new_pass = st.text_input("Νέος Κωδικός", type="password")
-            confirm_pass = st.text_input("Επιβεβαίωση Κωδικού", type="password")
-            
-            st.caption("Ο κωδικός πρέπει να έχει: τουλ. 8 χαρακτήρες, 1 κεφαλαίο, 1 αριθμό, 1 σύμβολο.")
-
-            submit_signup = st.form_submit_button("Δημιουργία Λογαριασμού")
-
-            if submit_signup:
-                if not new_email or not new_user or not new_pass or not confirm_pass:
-                    st.warning("⚠️ Παρακαλώ συμπληρώστε όλα τα πεδία.")
-                elif "@" not in new_email or "." not in new_email:
-                    st.error("❌ Παρακαλώ εισάγετε ένα έγκυρο Email.")
-                elif new_pass != confirm_pass:
-                    st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
-                else:
-                    is_valid, error_message = is_strong_password(new_pass)
-                    
-                    if not is_valid:
-                        st.error(f"❌ {error_message}")
-                    else:
+                        sheet_users = {}
                         try:
-                            hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                            users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
-                            st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
-                        except Exception as e:
-                            st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
+                            u_data = users_sheet.get_all_values()
+                            if len(u_data) > 1:
+                                for row in u_data[1:]:
+                                    if len(row) >= 3:
+                                        sheet_users[str(row[2]).strip()] = {
+                                            "pass": str(row[1]).strip(),
+                                            "email": str(row[0]).strip().lower()
+                                        }
+                        except Exception:
+                            pass
 
-    # RESET PASSWORD TAB
-    with tab_reset:
-        st.markdown("### 🔑 Ανάκτηση Κωδικού")
-        with st.form(key="reset_form"):
-            reset_email = st.text_input("Εισάγετε το Email σας").strip().lower()
-            submit_reset = st.form_submit_button("Αποστολή Προσωρινού Κωδικού")
-
-            if submit_reset:
-                if not reset_email:
-                    st.warning("⚠️ Παρακαλώ συμπληρώστε το email σας.")
-                else:
-                    try:
-                        u_data = users_sheet.get_all_values()
-                        found_user, found_row_index = None, None
-                        if len(u_data) > 1:
-                            for i, row in enumerate(u_data[1:], start=2):
-                                if len(row) >= 3 and str(row[0]).strip().lower() == reset_email:
-                                    found_user = row[2]
-                                    found_row_index = i
-                                    break
-
-                        if found_row_index:
-                            temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8)) + "A1!"
-                            temp_hashed = bcrypt.hashpw(temp_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                            
-                            users_sheet.update_cell(found_row_index, 2, temp_hashed)
-
-                            subject = "🔑 Νέος Κωδικός - Personal Finance Tracker"
-                            body = f"""
-                            <h3>Γεια σου {found_user},</h3>
-                            <p>Ζητήθηκε ανάκτηση κωδικού για την εφαρμογή. Ορίστηκε ένας προσωρινός κωδικός.</p>
-                            <p><b>Username:</b> {found_user}<br>
-                            <b>Προσωρινός Κωδικός:</b> <code>{temp_pass}</code></p>
-                            <hr>
-                            <p><small>Συνδεθείτε με αυτόν τον κωδικό.</small></p>
-                            """
-                            ok, msg = send_email(reset_email, subject, body)
-                            if ok:
-                                st.success("✅ Ο νέος κωδικός σας στάλθηκε στο email σας!")
-                            else:
-                                st.error(f"⚠️ {msg}")
+                        if username_input in sheet_users:
+                            stored_hash = sheet_users[username_input]["pass"]
+                            try:
+                                if bcrypt.checkpw(password_input.encode('utf-8'), stored_hash.encode('utf-8')):
+                                    st.session_state["password_correct"] = True
+                                    st.session_state["current_user"] = username_input
+                                    st.session_state["user_email"] = sheet_users[username_input]["email"]
+                                    st.rerun()
+                                else:
+                                    st.error(t["wrong_pass"])
+                            except ValueError:
+                                st.error("❌ Legacy plain-text password found. Please delete user from Sheet and re-register.")
                         else:
-                            st.error("❌ Δεν βρέθηκε λογαριασμός με αυτό το email.")
-                    except Exception as e:
-                        st.error(f"⚠️ Σφάλμα: {e}")
+                            st.error(t["user_not_found"])
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button(t["no_account"], key="goto_signup"):
+                    st.session_state["auth_mode"] = "signup"
+                    st.rerun()
+            with col_btn2:
+                if st.button(t["forgot_pass"], key="goto_reset"):
+                    st.session_state["auth_mode"] = "reset"
+                    st.rerun()
+
+        # MODE 2: SIGNUP
+        elif st.session_state["auth_mode"] == "signup":
+            st.markdown(f"### {t['signup_title']}")
+            with st.form(key="signup_form"):
+                new_email = st.text_input(t["email"]).strip().lower()
+                new_user = st.text_input(t["username"]).strip()
+                new_pass = st.text_input(t["password"], type="password")
+                confirm_pass = st.text_input(t["confirm_pass"], type="password")
+                st.caption(t["pass_rules"])
+
+                submit_signup = st.form_submit_button(t["signup_btn"])
+
+                if submit_signup:
+                    if not new_email or not new_user or not new_pass or not confirm_pass:
+                        st.warning(t["fill_all"])
+                    elif "@" not in new_email or "." not in new_email:
+                        st.error(t["invalid_email"])
+                    elif new_pass != confirm_pass:
+                        st.error(t["pass_mismatch"])
+                    else:
+                        is_valid, error_msg = is_strong_password(new_pass)
+                        if not is_valid:
+                            st.error(f"❌ {error_msg}")
+                        else:
+                            try:
+                                hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                                users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
+                                st.success(t["signup_success"])
+                                st.session_state["auth_mode"] = "login"
+                            except Exception as e:
+                                st.error(f"⚠️ Error: {e}")
+
+            if st.button(t["have_account"], key="goto_login_from_signup"):
+                st.session_state["auth_mode"] = "login"
+                st.rerun()
+
+        # MODE 3: RESET PASSWORD
+        elif st.session_state["auth_mode"] == "reset":
+            st.markdown(f"### {t['reset_title']}")
+            with st.form(key="reset_form"):
+                reset_email = st.text_input(t["email"]).strip().lower()
+                submit_reset = st.form_submit_button(t["reset_btn"])
+
+                if submit_reset:
+                    if not reset_email:
+                        st.warning(t["fill_all"])
+                    else:
+                        try:
+                            u_data = users_sheet.get_all_values()
+                            found_user, found_row_index = None, None
+                            if len(u_data) > 1:
+                                for i, row in enumerate(u_data[1:], start=2):
+                                    if len(row) >= 3 and str(row[0]).strip().lower() == reset_email:
+                                        found_user = row[2]
+                                        found_row_index = i
+                                        break
+
+                            if found_row_index:
+                                temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8)) + "A1!"
+                                temp_hashed = bcrypt.hashpw(temp_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                                users_sheet.update_cell(found_row_index, 2, temp_hashed)
+
+                                subject = "🔑 Reset Password - Personal Finance Tracker"
+                                body = f"<h3>Hello {found_user},</h3><p>Your temp password is: <code>{temp_pass}</code></p>"
+                                ok, msg = send_email(reset_email, subject, body)
+                                if ok:
+                                    st.success(t["reset_sent"])
+                                    st.session_state["auth_mode"] = "login"
+                                else:
+                                    st.error(f"⚠️ {msg}")
+                            else:
+                                st.error("❌ Email not found.")
+                        except Exception as e:
+                            st.error(f"⚠️ Error: {e}")
+
+            if st.button(t["have_account"], key="goto_login_from_reset"):
+                st.session_state["auth_mode"] = "login"
+                st.rerun()
 
     return False
 
-# --- HELPER: CALCULATE CURRENT BALANCE ---
+# --- HELPER: BALANCE CALCULATOR ---
 @st.cache_data(ttl=600)
 def get_cached_sheet_data(_worksheet):
     return _worksheet.get_all_values()
@@ -201,31 +289,38 @@ def get_current_balance(worksheet, current_user):
         total_income = numeric_amounts[df["Τύπος"] == "Έσοδο"].sum()
         total_expense = numeric_amounts[df["Τύπος"] == "Έξοδο"].sum()
         return total_income - total_expense
-    except Exception as e:
-        st.error(f"Σφάλμα υπολογισμού υπολοίπου: {e}")
+    except Exception:
         return 0.0
 
 # --- MAIN APP ROUTING ---
 try:
     worksheet, users_sheet = get_sheets_connection()
 except Exception as e:
-    st.error(f"⚠️ Σφάλμα σύνδεσης: {e}")
+    st.error(f"⚠️ Connection Error: {e}")
     st.stop()
 
 if check_password(users_sheet):
     current_user = st.session_state["current_user"]
     user_email = st.session_state.get("user_email", "")
     user_balance = get_current_balance(worksheet, current_user)
+    t = TRANSLATIONS[st.session_state["lang"]]
 
-    col_logo, col_title, col_balance = st.columns([1, 5, 4])
+    col_logo, col_title, col_balance, col_lang = st.columns([1, 4, 3, 1])
     with col_logo: st.image(ICON_URL, width=55)
     with col_title:
         st.title("Personal Finance Tracker")
-        st.caption(f"Χρήστης: **{current_user}**" + (f" ({user_email})" if user_email else ""))
-    with col_balance: st.metric(label="💳 Διαθέσιμο Υπόλοιπο", value=f"{user_balance:.2f} €")
+        st.caption(f"User: **{current_user}**" + (f" ({user_email})" if user_email else ""))
+    with col_balance: 
+        st.metric(label=t["balance"], value=f"{user_balance:.2f} €")
+    with col_lang:
+        selected_lang = st.selectbox("🌐", ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="main_lang_select")
+        if selected_lang != st.session_state["lang"]:
+            st.session_state["lang"] = selected_lang
+            st.rerun()
+
     st.markdown("---")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["➕ Καταχώρηση", "📊 Analytics", "⚙️ Προφίλ", "💬 AI Assistant"])
+    tab1, tab2, tab3, tab4 = st.tabs([t["nav_entry"], t["nav_analytics"], t["nav_profile"], t["nav_ai"]])
     with tab1: render_entry(worksheet, current_user)
     with tab2: render_dashboard(worksheet, current_user)
     with tab3: render_profile(users_sheet, worksheet, current_user)
