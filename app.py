@@ -12,59 +12,56 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- LOGIN & SIGNUP WITH EMAIL AUTHENTICATION ---
+# --- LOGIN & SIGNUP AUTHENTICATION LOGIC ---
 def check_password(users_sheet):
     if st.session_state.get("password_correct", False):
         return True
 
     tab_login, tab_signup = st.tabs(["🔐 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη"])
 
-    # LOGIN TAB
+    # LOGIN TAB (USERNAME & PASSWORD)
     with tab_login:
         st.markdown("### 🔐 Σύνδεση στο Finance App")
-        st.caption("Συνδέσου με το Email σου για ταυτόχρονη πρόσβαση από όλες τις συσκευές σου.")
-        email_input = st.text_input("Email Χρήστη", key="login_email").strip().lower()
+        username_input = st.text_input("Όνομα Χρήστη (Username)", key="login_user").strip()
         password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password", key="login_pass")
 
         if st.button("Σύνδεση", key="btn_login"):
             passwords = st.secrets.get("passwords", {})
             
-            # Διάβασμα χρηστών από το Google Sheet (Email -> Password, Username)
+            # Διάβασμα χρηστών από το Google Sheet (Email | Password | Username)
             sheet_users = {}
             try:
                 u_data = users_sheet.get_all_values()
                 if len(u_data) > 1:
-                    # Αναμενόμενη δομή Sheet Χρηστών: Email | Password | Username
                     for row in u_data[1:]:
-                        if len(row) >= 2:
+                        if len(row) >= 3:
                             em = str(row[0]).strip().lower()
                             pw = str(row[1]).strip()
-                            uname = str(row[2]).strip() if len(row) >= 3 else em.split("@")[0]
-                            sheet_users[em] = {"pass": pw, "username": uname}
+                            uname = str(row[2]).strip()
+                            sheet_users[uname] = {"pass": pw, "email": em}
             except Exception:
                 pass
 
             # Έλεγχος στα Secrets
-            if email_input in passwords and passwords[email_input] == password_input:
+            if username_input in passwords and passwords[username_input] == password_input:
                 st.session_state["password_correct"] = True
-                st.session_state["current_user"] = email_input.split("@")[0]
-                st.session_state["user_email"] = email_input
+                st.session_state["current_user"] = username_input
+                st.session_state["user_email"] = ""
                 st.rerun()
             # Έλεγχος στο Google Sheet
-            elif email_input in sheet_users and sheet_users[email_input]["pass"] == password_input:
+            elif username_input in sheet_users and sheet_users[username_input]["pass"] == password_input:
                 st.session_state["password_correct"] = True
-                st.session_state["current_user"] = sheet_users[email_input]["username"]
-                st.session_state["user_email"] = email_input
+                st.session_state["current_user"] = username_input
+                st.session_state["user_email"] = sheet_users[username_input]["email"]
                 st.rerun()
             else:
-                st.error("❌ Λανθασμένο Email ή Κωδικός Πρόσβασης.")
+                st.error("❌ Λανθασμένο Όνομα Χρήστη ή Κωδικός Πρόσβασης.")
 
-    # SIGNUP TAB
+    # SIGNUP TAB (EMAIL, USERNAME, PASSWORD)
     with tab_signup:
         st.markdown("### 📝 Δημιουργία Νέου Λογαριασμού")
-        st.caption("Το Email σου θα χρησιμοποιηθεί για τον συγχρονισμό μεταξύ των συσκευών σου.")
         new_email = st.text_input("Email", key="signup_email").strip().lower()
-        new_user = st.text_input("Όνομα / Username (π.χ. spiros)", key="signup_user").strip()
+        new_user = st.text_input("Όνομα Χρήστη (Username)", key="signup_user").strip()
         new_pass = st.text_input("Νέος Κωδικός", type="password", key="signup_pass")
         confirm_pass = st.text_input("Επιβεβαίωση Κωδικού", type="password", key="signup_confirm")
 
@@ -79,7 +76,7 @@ def check_password(users_sheet):
                 try:
                     # Αποθήκευση στο Sheet: Email, Password, Username
                     users_sheet.append_row([new_email, new_pass, new_user], value_input_option="USER_ENTERED")
-                    st.success("🎉 Ο λογαριασμός δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε από οποιαδήποτε συσκευή.")
+                    st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
                 except Exception as e:
                     st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
 
@@ -129,7 +126,7 @@ if check_password(users_sheet):
         
     with col_title:
         st.title("Personal Finance Tracker")
-        st.caption(f"Χρήστης: **{current_user}** ({user_email})")
+        st.caption(f"Χρήστης: **{current_user}**" + (f" ({user_email})" if user_email else ""))
         
     with col_balance:
         st.metric(label="💳 Διαθέσιμο Υπόλοιπο", value=f"{user_balance:.2f} €")
