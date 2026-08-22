@@ -6,30 +6,64 @@ from views_dashboard import render_dashboard
 from views_profile import render_profile
 from views_chat import render_chat
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Personal Finance App",
     page_icon="💰",
     layout="wide"
 )
 
-# --- LOGIN / AUTHENTICATION LOGIC ---
-def check_password():
+# --- LOGIN & SIGNUP AUTHENTICATION LOGIC ---
+def check_password(users_sheet):
     if st.session_state.get("password_correct", False):
         return True
 
-    st.markdown("### 🔐 Σύνδεση στο Finance App")
-    username_input = st.text_input("Όνομα Χρήστη (Username)", key="login_user")
-    password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password", key="login_pass")
+    tab_login, tab_signup = st.tabs(["🔐 Σύνδεση", "📝 Εγγραφή Νέου Χρήστη"])
 
-    if st.button("Σύνδεση"):
-        passwords = st.secrets.get("passwords", {})
-        if username_input in passwords and passwords[username_input] == password_input:
-            st.session_state["password_correct"] = True
-            st.session_state["current_user"] = username_input
-            st.rerun()
-        else:
-            st.error("❌ Λανθασμένο όνομα χρήστη ή κωδικός πρόσβασης.")
+    # LOGIN TAB
+    with tab_login:
+        st.markdown("### 🔐 Σύνδεση στο Finance App")
+        username_input = st.text_input("Όνομα Χρήστη (Username)", key="login_user")
+        password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password", key="login_pass")
+
+        if st.button("Σύνδεση", key="btn_login"):
+            passwords = st.secrets.get("passwords", {})
+            
+            # Έλεγχος και στο Google Sheet των Χρηστών
+            sheet_users = {}
+            try:
+                u_data = users_sheet.get_all_values()
+                if len(u_data) > 1:
+                    sheet_users = {row[0]: row[1] for row in u_data[1:] if len(row) >= 2}
+            except Exception:
+                pass
+
+            all_users = {**passwords, **sheet_users}
+
+            if username_input in all_users and all_users[username_input] == password_input:
+                st.session_state["password_correct"] = True
+                st.session_state["current_user"] = username_input
+                st.rerun()
+            else:
+                st.error("❌ Λανθασμένο όνομα χρήστη ή κωδικός πρόσβασης.")
+
+    # SIGNUP TAB
+    with tab_signup:
+        st.markdown("### 📝 Δημιουργία Νέου Λογαριασμού")
+        new_user = st.text_input("Νέο Όνομα Χρήστη (Username)", key="signup_user")
+        new_pass = st.text_input("Νέος Κωδικός (Password)", type="password", key="signup_pass")
+        confirm_pass = st.text_input("Επιβεβαίωση Κωδικού", type="password", key="signup_confirm")
+
+        if st.button("Δημιουργία Λογαριασμού", key="btn_signup"):
+            if not new_user or not new_pass:
+                st.warning("⚠️ Παρακαλώ συμπληρώστε όλα τα πεδία.")
+            elif new_pass != confirm_pass:
+                st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
+            else:
+                try:
+                    users_sheet.append_row([new_user, new_pass], value_input_option="USER_ENTERED")
+                    st.success("🎉 Ο λογαριασμός δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
+                except Exception as e:
+                    st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
 
     return False
 
@@ -59,20 +93,16 @@ def get_current_balance(worksheet, current_user):
         return 0.0
 
 # --- MAIN APP ROUTING ---
-if check_password():
+try:
+    worksheet, users_sheet = get_sheets_connection()
+except Exception as e:
+    st.error(f"⚠️ Σφάλμα σύνδεσης με το Google Sheet: {e}")
+    st.stop()
+
+if check_password(users_sheet):
     current_user = st.session_state["current_user"]
-
-    # Load Google Sheets connection
-    try:
-        worksheet, users_sheet = get_sheets_connection()
-    except Exception as e:
-        st.error(f"⚠️ Σφάλμα σύνδεσης με το Google Sheet: {e}")
-        st.stop()
-
-    # Calculate overall balance
     user_balance = get_current_balance(worksheet, current_user)
 
-    # --- TOP HEADER WITH LOGO & ALWAYS-VISIBLE BALANCE ---
     col_logo, col_title, col_balance = st.columns([1, 5, 4])
     
     with col_logo:
@@ -87,7 +117,6 @@ if check_password():
 
     st.markdown("---")
 
-    # --- APP NAVIGATION TABS ---
     tab1, tab2, tab3, tab4 = st.tabs([
         "➕ Καταχώρηση", 
         "📊 Analytics", 
