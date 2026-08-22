@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import datetime
 
 def render_dashboard(worksheet, current_user):
     st.subheader("📊 Αναφορές & Analytics")
@@ -29,13 +30,12 @@ def render_dashboard(worksheet, current_user):
         st.info(f"Δεν βρέθηκαν εγγραφές για τον χρήστη {current_user}.")
         return
 
-    # Μετατροπή Ημερομηνίας σε datetime αντικείμενα για φιλτράρισμα
+    # Μετατροπή Ημερομηνίας
     if "Ημερομηνία" in df.columns:
         df["Date_Parsed"] = pd.to_datetime(df["Ημερομηνία"], errors="coerce")
         df["Έτος"] = df["Date_Parsed"].dt.year.fillna(0).astype(int).astype(str)
         df["Μήνας_Num"] = df["Date_Parsed"].dt.month.fillna(0).astype(int)
         
-        # Αντιστοίχιση μηνών σε ελληνικά ονόματα
         month_names = {
             0: "Άγνωστος", 1: "Ιανουάριος", 2: "Φεβρουάριος", 3: "Μάρτιος",
             4: "Απρίλιος", 5: "Μάιος", 6: "Ιούνιος", 7: "Ιούλιος",
@@ -56,19 +56,16 @@ def render_dashboard(worksheet, current_user):
     with col_filter1:
         selected_year = st.selectbox("Επιλογή Έτους", year_options, key="filter_year")
 
-    # Εφαρμογή φίλτρου έτους
     filtered_df = df.copy()
     if selected_year != "Όλα":
         filtered_df = filtered_df[filtered_df["Έτος"] == selected_year]
 
-    # Διαθέσιμοι μήνες με βάση το επιλεγμένο έτος
     available_months_num = sorted([m for m in filtered_df["Μήνας_Num"].unique() if m != 0])
     month_options = ["Όλοι"] + [month_names[m] for m in available_months_num]
 
     with col_filter2:
         selected_month = st.selectbox("Επιλογή Μήνα", month_options, key="filter_month")
 
-    # Εφαρμογή φίλτρου μήνα
     if selected_month != "Όλοι":
         filtered_df = filtered_df[filtered_df["Μήνας"] == selected_month]
 
@@ -85,22 +82,31 @@ def render_dashboard(worksheet, current_user):
         st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
         return
 
-    # Υπολογισμός Συνόλων
+    # Υπολογισμός Συνόλων Περιόδου
     type_col = "Τύπος" if "Τύπος" in filtered_df.columns else None
     total_income = numeric_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
     total_expense = numeric_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
-    balance = total_income - total_expense
+    period_balance = total_income - total_expense
 
-    # Εμφάνιση Metrics
+    # Υπολογισμός Safe to Spend (Υπόλοιπο περιόδου - Πάγια/Αποταμίευση ή 70% του διαθέσιμου)
+    # Safe to spend = Υπόλοιπο - Έξοδα Κατηγορίας "Πάγια / Λογαριασμοί" & "Αποταμίευση"
+    cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
+    fixed_expenses = 0.0
+    if cat_col and type_col:
+        fixed_mask = (filtered_df[type_col] == "Έξοδο") & (filtered_df[cat_col].isin(["Πάγια / Λογαριασμοί", "Αποταμίευση"]))
+        fixed_expenses = numeric_amounts[fixed_mask].sum()
+
+    safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
+
+    # Εμφάνιση Metrics (Αντικατάσταση Υπολοίπου με Safe to Spend)
     col1, col2, col3 = st.columns(3)
-    col1.metric("💰 Συνολικά Έσοδα", f"{total_income:.2f} €")
-    col2.metric("💸 Συνολικά Έξοδα", f"{total_expense:.2f} €")
-    col3.metric("⚖️ Υπόλοιπο", f"{balance:.2f} €")
+    col1.metric("💰 Έσοδα Περιόδου", f"{total_income:.2f} €")
+    col2.metric("💸 Έξοδα Περιόδου", f"{total_expense:.2f} €")
+    col3.metric("🟢 Safe to Spend", f"{safe_to_spend:.2f} €", help="Διαθέσιμο ποσό αφού υπολογιστούν τα Πάγια και η Αποταμίευση")
 
     st.markdown("---")
 
-    # Ανάλυση Εξόδων ανά Κατηγορία & Διάγραμμα
-    cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
+    # Ανάλυση Εξόδων ανά Κατηγορία & Σταθερό Διάγραμμα (Χωρίς αυτόματο Zoom)
     if type_col and cat_col:
         df_expenses_mask = filtered_df[type_col] == "Έξοδο"
         if df_expenses_mask.any():
@@ -110,7 +116,9 @@ def render_dashboard(worksheet, current_user):
                 "Ποσό": numeric_amounts[df_expenses_mask]
             })
             cat_summary = df_chart.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
-            st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό")
+            
+            # st.bar_chart χωρίς αυτόματο zoom/touch interference
+            st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό", use_container_width=True)
 
     # Πίνακας Εγγραφών (ΜΟΝΟ οι 5 βασικές στήλες)
     st.markdown("---")
