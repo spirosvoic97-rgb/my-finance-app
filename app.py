@@ -8,16 +8,17 @@ from views_dashboard import render_dashboard
 from views_profile import render_profile
 from views_chat import render_chat
 
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Personal Finance App",
     page_icon="💰",
     layout="wide"
 )
 
-# --- HELPER: EMAIL SENDER ---
+# --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
 def send_email(to_email, subject, body):
     if "email" not in st.secrets:
-        return False, "Δεν έχουν ρυθμιστεί τα Email Secrets."
+        return False, "Δεν έχουν ρυθμιστεί τα Email Secrets στο Streamlit Cloud."
     try:
         conf = st.secrets["email"]
         msg = MIMEText(body, "html", "utf-8")
@@ -65,7 +66,6 @@ def check_password(users_sheet):
             if username_input in passwords and passwords[username_input] == password_input:
                 st.session_state["password_correct"] = True
                 st.session_state["current_user"] = username_input
-                # Αν υπάρχει στο Sheet πάρε το email, αλλιώς κενό
                 st.session_state["user_email"] = sheet_users.get(username_input, {}).get("email", "")
                 st.rerun()
             elif username_input in sheet_users and sheet_users[username_input]["pass"] == password_input:
@@ -190,6 +190,7 @@ if check_password(users_sheet):
 
     st.markdown("---")
 
+    # --- APP NAVIGATION TABS ---
     tab1, tab2, tab3, tab4 = st.tabs([
         "➕ Καταχώρηση", 
         "📊 Analytics", 
@@ -204,7 +205,7 @@ if check_password(users_sheet):
         render_dashboard(worksheet, current_user)
 
     with tab3:
-        render_profile(users_sheet, current_user)
+        render_profile(users_sheet, worksheet, current_user)
 
     with tab4:
         render_chat(worksheet, current_user)
