@@ -101,24 +101,7 @@ def render_entry(worksheet, current_user):
                         scanned_category = cat_candidate if cat_candidate in EXPENSE_CATEGORIES else "Super Market"
                         st.success(f"✅ Εντοπίστηκε: {scanned_desc} - {scanned_amount:.2f}€")
                 except Exception as e:
-                    # Fallback προσπάθεια με gemini-2.5-flash αν χρειαστεί
-                    try:
-                        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                        response = client.models.generate_content(
-                            model='gemini-2.5-flash',
-                            contents=[prompt, genai.types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')]
-                        )
-                        res_text = response.text.strip()
-                        if "```json" in res_text: res_text = res_text.split("```json")[1].split("```")[0].strip()
-                        elif "```" in res_text: res_text = res_text.split("```")[1].split("```")[0].strip()
-                        parsed = json.loads(res_text)
-                        scanned_amount = float(parsed.get("amount", 0.0))
-                        scanned_desc = str(parsed.get("description", "Απόδειξη"))
-                        cat_candidate = str(parsed.get("category", "Super Market"))
-                        scanned_category = cat_candidate if cat_candidate in EXPENSE_CATEGORIES else "Super Market"
-                        st.success(f"✅ Εντοπίστηκε: {scanned_desc} - {scanned_amount:.2f}€")
-                    except Exception as e2:
-                        st.error(f"⚠️ Σφάλμα AI: {e2}")
+                    st.error(f"⚠️ Σφάλμα AI: {e}")
             else:
                 st.warning("⚠️ Το GEMINI_API_KEY δεν βρέθηκε στα Secrets!")
 
