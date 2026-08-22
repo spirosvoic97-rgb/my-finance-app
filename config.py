@@ -4,7 +4,6 @@ from google.oauth2.service_account import Credentials
 
 ICON_URL = "https://cdn-icons-png.flaticon.com/512/2953/2953361.png"
 
-# --- ΚΑΤΗΓΟΡΙΕΣ ΕΣΟΔΩΝ & ΕΞΟΔΩΝ ---
 INCOME_CATEGORIES = [
     "Μισθός",
     "Freelance / Ιδιωτικά",
@@ -35,19 +34,25 @@ def get_sheets_connection():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        if "gcp_service_account" not in st.secrets:
-            raise Exception("Δεν βρέθηκε το [gcp_service_account] στα Streamlit Secrets.")
+        if "gcp_service_account" in st.secrets:
+            creds_dict = dict(st.secrets["gcp_service_account"])
+        elif "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+            creds_dict = dict(st.secrets["connections"]["gsheets"])
+        else:
+            raise Exception("Δεν βρέθηκαν τα Google Credentials στα Secrets.")
 
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        
-        # Αντικατάσταση διπλών backslashes αν υπάρχουν
+        # Καθαρισμός του Private Key από formatting issues
         if "private_key" in creds_dict:
-            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+            pk = str(creds_dict["private_key"]).strip()
+            # Αφαίρεση εξωτερικών quotes αν υπάρχουν
+            if (pk.startswith('"') and pk.endswith('"')) or (pk.startswith("'") and pk.endswith("'")):
+                pk = pk[1:-1]
+            pk = pk.replace("\\n", "\n")
+            creds_dict["private_key"] = pk
 
         credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(credentials)
 
-        # Σύνδεση με το Google Sheet
         spreadsheet = client.open("Personal Finance Tracker Data")
         worksheet = spreadsheet.worksheet("Sheet1")
         users_sheet = spreadsheet.worksheet("Users")
