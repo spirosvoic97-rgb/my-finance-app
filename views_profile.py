@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
-import smtplib
 from io import BytesIO
+import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
+import bcrypt
 
 def send_email_attachment(to_email, subject, body, attachment_bytes=None, filename=""):
     if "email" not in st.secrets:
@@ -33,6 +34,8 @@ def send_email_attachment(to_email, subject, body, attachment_bytes=None, filena
         return False, f"Σφάλμα αποστολής: {e}"
 
 def render_profile(users_sheet, worksheet, current_user, t=None):
+    if t is None: t = {}
+
     st.subheader("⚙️ Διαχείριση Προφίλ & Υπηρεσίες Email")
     st.write(f"Συνδεδεμένος χρήστης: **{current_user}**")
     
@@ -55,15 +58,10 @@ def render_profile(users_sheet, worksheet, current_user, t=None):
                             users_sheet.update_cell(i, 1, new_email_val.lower())
                             found = True
                             break
-                        elif len(row) >= 1 and str(row[0]).strip() == current_user:
-                            users_sheet.update_cell(i, 1, new_email_val.lower())
-                            found = True
-                            break
                 
                 if not found:
-                    passwords = st.secrets.get("passwords", {})
-                    user_pass = passwords.get(current_user, "123456")
-                    users_sheet.append_row([new_email_val.lower(), user_pass, current_user], value_input_option="USER_ENTERED")
+                    # Αν δεν βρεθεί, προσθήκη με κενό hash
+                    users_sheet.append_row([new_email_val.lower(), "", current_user], value_input_option="USER_ENTERED")
 
                 st.session_state["user_email"] = new_email_val.lower()
                 st.success("✅ Το email ενημερώθηκε και αποθηκεύτηκε επιτυχώς!")
@@ -71,10 +69,15 @@ def render_profile(users_sheet, worksheet, current_user, t=None):
             except Exception as e:
                 st.error(f"⚠️ Σφάλμα αποθήκευσης: {e}")
 
+    # --- ΜΗΝΙΑΙΟΣ ΣΤΟΧΟΣ ΑΠΟΤΑΜΙΕΥΣΗΣ ---
     st.markdown("---")
-    st.markdown("### 📧 Λειτουργίες Email & Backup")
-
-    col_mail1, col_mail2 = st.columns(2)
+    st.markdown("#### 🎯 Μηνιαίος Στόχος Αποταμίευσης")
+    current_goal = st.session_state.get("monthly_budget_goal", 200.0)
+    new_goal = st.number_input("Ορίστε τον μηνιαίο στόχο σας (€)", value=float(current_goal), step=50.0, key="input_budget_goal")
+    
+    if st.button("💾 Αποθήκευση Στόχου", key="save_budget_goal"):
+        st.session_state["monthly_budget_goal"] = new_goal
+        st.success("✅ Ο στόχος αποταμίευσης ενημερώθηκε επιτυχώς!")
 
     # --- ΔΙΑΒΑΣΜΑ ΔΕΔΟΜΕΝΩΝ ΓΙΑ REPORT & BACKUP ---
     user_df = pd.DataFrame()
@@ -90,15 +93,19 @@ def render_profile(users_sheet, worksheet, current_user, t=None):
     except Exception:
         pass
 
+    st.markdown("---")
+    st.markdown("### 📧 Λειτουργίες Email & Backup")
+
+    col_mail1, col_mail2 = st.columns(2)
+
     with col_mail1:
         st.markdown("#### 📊 Μηνιαίο Report")
         st.caption("Στείλε μια αναλυτική αναφορά των εξόδων σου στο email σου.")
-        if st.button("📩 Αποστολή Μηνιαίου Report", key="btn_send_report"):
+        if st.button("📩 Αποστολή Μηνιαίου Report", key="btn_send_report", use_container_width=True):
             current_email = st.session_state.get("user_email", "").strip()
             if not current_email:
                 st.error("❌ Παρακαλώ αποθηκεύστε πρώτα το Email σου παραπάνω.")
             else:
-                # Υπολογισμός στατιστικών
                 total_income, total_expense = 0.0, 0.0
                 recent_rows_html = ""
                 
@@ -107,7 +114,6 @@ def render_profile(users_sheet, worksheet, current_user, t=None):
                     total_income = num_amt[user_df["Τύπος"] == "Έσοδο"].sum()
                     total_expense = num_amt[user_df["Τύπος"] == "Έξοδο"].sum()
                     
-                    # Πίνακας πρόσφατων εγγραφών
                     recent_df = user_df.tail(8)
                     recent_rows_html = "".join([
                         f"<tr><td style='padding:6px;border:1px solid #ddd;'>{row.get('Ημερομηνία','')}</td>"
@@ -160,15 +166,13 @@ def render_profile(users_sheet, worksheet, current_user, t=None):
     with col_mail2:
         st.markdown("#### 📁 Backup σε Excel")
         st.caption("Λάβε ένα πλήρες αντίγραφο ασφαλείας όλων των εγγραφών σου σε αρχείο Excel.")
-        if st.button("📤 Αποστολή Excel στο Email", key="btn_send_excel"):
+        if st.button("📤 Αποστολή Excel στο Email", key="btn_send_excel", use_container_width=True):
             current_email = st.session_state.get("user_email", "").strip()
             if not current_email:
                 st.error("❌ Παρακαλώ αποθηκεύστε πρώτα το Email σου παραπάνω.")
             else:
                 try:
                     excel_buffer = BytesIO()
-                    
-                    # Καθαρισμός στηλών για το Excel
                     export_df = user_df.copy() if not user_df.empty else pd.DataFrame([{"Πληροφορία": "Δεν βρέθηκαν εγγραφές"}])
                     
                     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
@@ -190,27 +194,38 @@ def render_profile(users_sheet, worksheet, current_user, t=None):
                 except Exception as e:
                     st.error(f"⚠️ Σφάλμα δημιουργίας Excel: {e}")
 
+    # --- BCRYPT PASSWORD CHANGE LOGIC ---
     st.markdown("---")
     st.markdown("### 🔑 Αλλαγή Κωδικού Πρόσβασης")
 
-    old_pass = st.text_input("Τρέχων Κωδικός", type="password", key="prof_old_pass")
-    new_pass = st.text_input("Νέος Κωδικός", type="password", key="prof_old_new_pass")
-    confirm_pass = st.text_input("Επιβεβαίωση Νέου Κωδικού", type="password", key="prof_old_conf_pass")
+    with st.form(key="prof_change_pass_form"):
+        old_pass = st.text_input("Τρέχων Κωδικός", type="password", key="prof_old_pass")
+        new_pass = st.text_input("Νέος Κωδικός", type="password", key="prof_old_new_pass")
+        confirm_pass = st.text_input("Επιβεβαίωση Νέου Κωδικού", type="password", key="prof_old_conf_pass")
+        submit_pass = st.form_submit_button("Ενημέρωση Κωδικού")
 
-    if st.button("Ενημέρωση Κωδικού", key="prof_save_btn"):
-        passwords = st.secrets.get("passwords", {})
-        if old_pass != passwords.get(current_user, ""):
-            st.error("❌ Ο τρέχων κωδικός είναι λανθασμένος.")
-        elif not new_pass:
-            st.warning("⚠️ Παρακαλώ εισάγετε έναν νέο κωδικό.")
-        elif new_pass != confirm_pass:
-            st.error("❌ Ο νέος κωδικός και η επιβεβαίωση δεν ταιριάζουν.")
-        else:
-            st.success("✅ Ο κωδικός ενημερώθηκε!")
+        if submit_pass:
+            if not old_pass or not new_pass or not confirm_pass:
+                st.warning("⚠️ Συμπληρώστε όλα τα πεδία.")
+            elif new_pass != confirm_pass:
+                st.error("❌ Ο νέος κωδικός και η επιβεβαίωση δεν ταιριάζουν.")
+            else:
+                try:
+                    u_data = users_sheet.get_all_values()
+                    found_row = None
+                    stored_hash = None
+                    if len(u_data) > 1:
+                        for i, row in enumerate(u_data[1:], start=2):
+                            if len(row) >= 3 and str(row[2]).strip() == current_user:
+                                found_row = i
+                                stored_hash = row[1]
+                                break
 
-    st.markdown("---")
-    if st.button("🚪 Αποσύνδεση (Logout)", key="logout_btn"):
-        st.session_state["password_correct"] = False
-        st.session_state["current_user"] = None
-        st.session_state["user_email"] = None
-        st.rerun()
+                    if found_row and stored_hash and bcrypt.checkpw(old_pass.encode('utf-8'), stored_hash.encode('utf-8')):
+                        new_hashed = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                        users_sheet.update_cell(found_row, 2, new_hashed)
+                        st.success("🎉 Ο κωδικός πρόσβασης άλλαξε επιτυχώς!")
+                    else:
+                        st.error("❌ Ο τρέχων κωδικός είναι λανθασμένος.")
+                except Exception as e:
+                    st.error(f"⚠️ Σφάλμα: {e}")
