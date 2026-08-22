@@ -168,8 +168,19 @@ def render_dashboard(worksheet, current_user, t=None):
     end_idx = start_idx + ITEMS_PER_PAGE
     page_df = filtered_df.iloc[start_idx:end_idx]
 
-    # ΕΜΦΑΝΙΣΗ ΠΙΝΑΚΑ ΧΩΡΙΣ ΤΟΥΣ ΑΡΙΘΜΟΥΣ ΤΗΣ ΠΡΩΤΗΣ ΣΤΗΛΗΣ (INDEX)
-    st.dataframe(page_df[available_cols], use_container_width=True, hide_index=True)
+    # ΕΜΦΑΝΙΣΗ ΠΙΝΑΚΑ ΜΕ WRAPPING ΓΙΑ ΝΑ ΧΩΡΑΕΙ ΣΕ ΜΙΑ ΟΘΟΝΗ ΧΩΡΙΣ HORIZONTAL SCROLL
+    st.dataframe(
+        page_df[available_cols],
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Ημερομηνία": st.column_config.TextColumn("Ημερομηνία", width="small"),
+            "Περιγραφή": st.column_config.TextColumn("Περιγραφή", width="medium"),
+            "Τύπος": st.column_config.TextColumn("Τύπος", width="small"),
+            "Κατηγορία": st.column_config.TextColumn("Κατηγορία", width="medium"),
+            "Ποσό": st.column_config.TextColumn("Ποσό (€)", width="small")
+        }
+    )
 
     # Κουμπιά Σελιδοποίησης
     col_prev, col_info, col_next = st.columns([1, 2, 1])
