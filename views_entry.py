@@ -87,7 +87,7 @@ def render_entry(worksheet, current_user):
                         }}
                         """
                         response = client.models.generate_content(
-                            model='gemini-2.5-flash',
+                            model='gemini-1.5-flash',
                             contents=[prompt, genai.types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')]
                         )
                         res_text = response.text.strip()
