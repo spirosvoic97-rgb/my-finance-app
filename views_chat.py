@@ -6,30 +6,39 @@ def render_chat(worksheet, current_user):
     st.subheader("💬 AI Financial Assistant")
     st.caption("Ρώτα την AI οτιδήποτε σχετικό με τα έξοδα, τα έσοδα και τις συνήθειές σου!")
 
-    # Φόρτωση δεδομένων από το Sheet
-    records = worksheet.get_all_records()
-    df = pd.DataFrame(records)
-    
-    if df.empty:
+    try:
+        data = worksheet.get_all_values()
+    except Exception as e:
+        st.error(f"⚠️ Σφάλμα κατά τη φορτώση δεδομένων: {e}")
+        return
+
+    if not data or len(data) <= 1:
         st.info("Δεν υπάρχουν ακόμα εγγραφές για ανάλυση.")
         return
+
+    headers = [str(h).strip() if str(h).strip() else f"Col_{i+1}" for i, h in enumerate(data[0])]
+    df = pd.DataFrame(data[1:], columns=headers)
 
     # Φιλτράρισμα για τον τρέχοντα χρήστη
     if "Username" in df.columns:
         df = df[df["Username"] == current_user]
 
-    # Προετοιμασία σύνοψης δεδομένων για το Prompt
-    data_summary = df[["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]].to_string(index=False)
+    if df.empty:
+        st.info("Δεν βρέθηκαν εγγραφές για τον χρήστη.")
+        return
+
+    desired_cols = ["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]
+    available_cols = [c for c in desired_cols if c in df.columns]
+
+    data_summary = df[available_cols].to_string(index=False)
 
     if "chat_history" not in st.session_state:
         st.session_state["chat_history"] = []
 
-    # Εμφάνιση ιστορικού chat
     for message in st.session_state["chat_history"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Εισαγωγή ερώτησης
     user_prompt = st.chat_input("π.χ. Πόσα ξόδεψα σε βενζίνες αυτό το μήνα;")
 
     if user_prompt:
