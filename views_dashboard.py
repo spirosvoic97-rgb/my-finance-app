@@ -45,7 +45,6 @@ def render_dashboard(worksheet, current_user, t=None):
         st.warning("Δεν βρέθηκε στήλη 'Ημερομηνία'.")
         return
 
-    # --- 1. TOP METRICS ---
     if "Ποσό" in df.columns:
         numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     else:
@@ -55,29 +54,46 @@ def render_dashboard(worksheet, current_user, t=None):
     type_col = "Τύπος" if "Τύπος" in df.columns else None
     cat_col = "Κατηγορία" if "Κατηγορία" in df.columns else None
 
-    temp_df = df.copy()
-    temp_amounts = numeric_amounts
+    # --- HELPER LOGIC FOR SAFE TO SPEND ---
+    def calculate_fixed_expenses(data_df, amounts_series):
+        if not cat_col or not type_col or data_df.empty:
+            return 0.0
+        
+        # Καθαρισμός κειμένου κατηγοριών (μικρά, χωρίς τόνους)
+        clean_cats = (
+            data_df[cat_col]
+            .astype(str)
+            .str.lower()
+            .str.replace("ά", "α")
+            .str.replace("έ", "ε")
+            .str.replace("ή", "η")
+            .str.replace("ί", "ι")
+            .str.replace("ό", "ο")
+            .str.replace("ύ", "υ")
+            .str.replace("ώ", "ω")
+        )
+        
+        # Αναζήτηση λέξεων κλειδιών για Πάγια & Αποταμίευση
+        fixed_mask = (data_df[type_col] == "Έξοδο") & (
+            clean_cats.str.contains("παγια", na=False) | 
+            clean_cats.str.contains("λογαριασμ", na=False) | 
+            clean_cats.str.contains("αποταμιευση", na=False) |
+            clean_cats.str.contains("ενοικι", na=False)
+        )
+        return amounts_series[fixed_mask].sum()
 
-    total_income = temp_amounts[temp_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
-    total_expense = temp_amounts[temp_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
+    # --- 1. TOP METRICS ---
+    total_income = numeric_amounts[df[type_col] == "Έσοδο"].sum() if type_col else 0.0
+    total_expense = numeric_amounts[df[type_col] == "Έξοδο"].sum() if type_col else 0.0
     period_balance = total_income - total_expense
 
-    fixed_expenses = 0.0
-    if cat_col and type_col:
-        cat_series = temp_df[cat_col].astype(str).str.lower()
-        fixed_mask = (temp_df[type_col] == "Έξοδο") & (
-            cat_series.str.contains("πάγια", na=False) | 
-            cat_series.str.contains("λογαριασμ", na=False) | 
-            cat_series.str.contains("αποταμίευση", na=False)
-        )
-        fixed_expenses = temp_amounts[fixed_mask].sum()
-
-    safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
+    fixed_exp_total = calculate_fixed_expenses(df, numeric_amounts)
+    safe_to_spend_total = max(0.0, period_balance - fixed_exp_total) if period_balance > 0 else 0.0
 
     col1, col2, col3 = st.columns(3)
     metric_inc = col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
     metric_exp = col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
-    metric_safe = col3.metric("🟢 Safe to Spend", f"{safe_to_spend:.2f} €", help="Διαθέσιμο ποσό αφού υπολογιστούν τα Πάγια και η Αποταμίευση")
+    metric_safe = col3.metric("🟢 Safe to Spend", f"{safe_to_spend_total:.2f} €", help="Διαθέσιμο υπόλοιπο μείων τα Πάγια/Λογαριασμούς & Αποταμίευση")
 
     st.markdown("---")
 
@@ -110,28 +126,19 @@ def render_dashboard(worksheet, current_user, t=None):
             key="compact_sort_select"
         )
 
-    # Ενημέρωση των Metrics με βάση τα φίλτρα
+    # Ενημέρωση των Metrics με βάση τα ενεργά φίλτρα
     if not filtered_df.empty:
         filtered_amounts = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
         total_income_f = filtered_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
         total_expense_f = filtered_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
         period_balance_f = total_income_f - total_expense_f
         
-        fixed_expenses_f = 0.0
-        if cat_col and type_col:
-            cat_series_f = filtered_df[cat_col].astype(str).str.lower()
-            fixed_mask_f = (filtered_df[type_col] == "Έξοδο") & (
-                cat_series_f.str.contains("πάγια", na=False) | 
-                cat_series_f.str.contains("λογαριασμ", na=False) | 
-                cat_series_f.str.contains("αποταμίευση", na=False)
-            )
-            fixed_expenses_f = filtered_amounts[fixed_mask_f].sum()
-            
-        safe_to_spend_f = max(0.0, period_balance_f - fixed_expenses_f) if period_balance_f > 0 else 0.0
+        fixed_exp_f = calculate_fixed_expenses(filtered_df, filtered_amounts)
+        safe_to_spend_f = max(0.0, period_balance_f - fixed_exp_f) if period_balance_f > 0 else 0.0
         
         metric_inc.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income_f:.2f} €")
         metric_exp.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense_f:.2f} €")
-        metric_safe.metric("🟢 Safe to Spend", f"{safe_to_spend_f:.2f} €", help="Διαθέσιμο ποσό αφού υπολογιστούν τα Πάγια και η Αποταμίευση")
+        metric_safe.metric("🟢 Safe to Spend", f"{safe_to_spend_f:.2f} €", help="Διαθέσιμο υπόλοιπο μείων τα Πάγια/Λογαριασμούς & Αποταμίευση")
 
     if filtered_df.empty:
         st.warning("Δεν βρέθηκαν εγγραφές για τη συγκεκριμένη περίοδο.")
@@ -140,7 +147,7 @@ def render_dashboard(worksheet, current_user, t=None):
     filtered_df["Clean_Amount"] = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     filtered_df["Ποσό (€)"] = filtered_df["Clean_Amount"]
 
-    # ΑΥΣΤΗΡΗ ΤΑΞΙΝΟΜΗΣΗ
+    # Ταξινόμηση
     if sort_order == "Ημερομηνία (Νεότερες πρώτα)":
         filtered_df = filtered_df.sort_values(by=["Date_Parsed"], ascending=False)
     elif sort_order == "Ημερομηνία (Παλαιότερες πρώτα)":
@@ -168,7 +175,6 @@ def render_dashboard(worksheet, current_user, t=None):
     end_idx = start_idx + ITEMS_PER_PAGE
     page_df = filtered_df.iloc[start_idx:end_idx]
 
-    # ΕΜΦΑΝΙΣΗ ΜΕ ST.TABLE ΓΙΑ ΠΛΗΡΗ ΑΝΑΠΤΥΞΗ
     st.table(page_df[available_cols].astype(str))
 
     # Κουμπιά Σελιδοποίησης
