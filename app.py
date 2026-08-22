@@ -28,7 +28,6 @@ st.markdown("""
         div[data-testid="stDecoration"] {display:none;}
         div[data-testid="stStatusWidget"] {visibility: hidden !important;}
         
-        /* Εξασφάλιση ότι το κουμπί/βέλος του Sidebar παραμένει ορατό */
         button[data-testid="stSidebarCollapseButton"] {
             visibility: visible !important;
             display: block !important;
@@ -340,7 +339,6 @@ if check_password(users_sheet):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Κουμπί Ρυθμίσεων στο Sidebar (εμφανίζεται μόνο όταν είμαστε στην κύρια εφαρμογή)
         if st.session_state["view_mode"] == "main":
             if st.button(t["settings"], use_container_width=True, key="btn_open_profile"):
                 st.session_state["view_mode"] = "profile"
@@ -353,18 +351,16 @@ if check_password(users_sheet):
             st.session_state["view_mode"] = "main"
             st.rerun()
 
-    # --- MAIN VIEW SWITCHING ---
+    # --- MAIN VIEW SWITCHING (ΠΕΡΝΑΜΕ ΤΟ t ΠΑΝΤΟΥ) ---
     if st.session_state["view_mode"] == "profile":
-        # Κουμπί Επιστροφής στο πάνω μέρος της οθόνης
         if st.button(t["back_to_app"], key="btn_top_back"):
             st.session_state["view_mode"] = "main"
             st.rerun()
             
         st.markdown("---")
         st.subheader(t["settings"])
-        render_profile(users_sheet, worksheet, current_user)
+        render_profile(users_sheet, worksheet, current_user, t)
     else:
-        # MAIN HEADER
         col_title, col_balance = st.columns([5, 3])
         with col_title:
             st.title("Personal Finance Tracker")
@@ -375,6 +371,6 @@ if check_password(users_sheet):
         st.markdown("---")
 
         tab1, tab2, tab3 = st.tabs([t["nav_entry"], t["nav_analytics"], t["nav_ai"]])
-        with tab1: render_entry(worksheet, current_user)
-        with tab2: render_dashboard(worksheet, current_user)
-        with tab3: render_chat(worksheet, current_user)
+        with tab1: render_entry(worksheet, current_user, t)
+        with tab2: render_dashboard(worksheet, current_user, t)
+        with tab3: render_chat(worksheet, current_user, t)
