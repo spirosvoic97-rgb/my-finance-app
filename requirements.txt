@@ -3,4 +3,6 @@ pandas
 gspread
 google-auth
 bcrypt
+google-genai
+Pillow
 plotly
