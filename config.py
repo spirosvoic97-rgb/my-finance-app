@@ -56,7 +56,7 @@ def get_sheets_connection():
         credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
         client = gspread.authorize(credentials)
 
-        spreadsheet = client.open("Personal Finance Tracker Data")
+        spreadsheet = client.open("Finance Tracker Data")
         worksheet = spreadsheet.worksheet("Sheet1")
         users_sheet = spreadsheet.worksheet("Users")
 
