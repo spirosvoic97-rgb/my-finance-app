@@ -66,6 +66,7 @@ TRANSLATIONS = {
         "balance": "💳 Διαθέσιμο Υπόλοιπο",
         "welcome": "Καλώς ήρθες",
         "settings": "⚙️ Ρυθμίσεις & Προφίλ",
+        "back_to_app": "🔙 Επιστροφή στην Εφαρμογή",
         "logout": "🚪 Αποσύνδεση",
         "language": "🌐 Γλώσσα / Language"
     },
@@ -97,6 +98,7 @@ TRANSLATIONS = {
         "balance": "💳 Available Balance",
         "welcome": "Welcome back",
         "settings": "⚙️ Settings & Profile",
+        "back_to_app": "🔙 Back to App",
         "logout": "🚪 Logout",
         "language": "🌐 Language"
     }
@@ -105,19 +107,21 @@ TRANSLATIONS = {
 # --- STATE INITIALIZATION ---
 if "lang" not in st.session_state:
     st.session_state["lang"] = "EL"
+if "view_mode" not in st.session_state:
+    st.session_state["view_mode"] = "main"
 
 t = TRANSLATIONS[st.session_state["lang"]]
 
 # --- HELPER: PASSWORD STRENGTH CHECKER ---
 def is_strong_password(password):
     if len(password) < 8:
-        return False, "Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες / Min 8 characters."
+        return False, "Min 8 characters."
     if not any(c.isupper() for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 κεφαλαίο γράμμα / At least 1 uppercase letter."
+        return False, "At least 1 uppercase letter."
     if not any(c.isdigit() for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 αριθμό / At least 1 number."
+        return False, "At least 1 number."
     if not any(c in string.punctuation for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο / At least 1 symbol."
+        return False, "At least 1 symbol."
     return True, ""
 
 # --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
@@ -190,6 +194,7 @@ def check_password(users_sheet):
                                     st.session_state["password_correct"] = True
                                     st.session_state["current_user"] = username_input
                                     st.session_state["user_email"] = sheet_users[username_input]["email"]
+                                    st.session_state["view_mode"] = "main"
                                     st.rerun()
                                 else:
                                     st.error(t["wrong_pass"])
@@ -335,13 +340,21 @@ if check_password(users_sheet):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        show_settings = st.checkbox(t["settings"], value=st.session_state.get("show_profile_page", False))
-        st.session_state["show_profile_page"] = show_settings
+        # Νέο Κουμπί για Ρυθμίσεις / Προφίλ
+        if st.session_state["view_mode"] == "main":
+            if st.button(t["settings"], use_container_width=True, key="btn_open_profile"):
+                st.session_state["view_mode"] = "profile"
+                st.rerun()
+        else:
+            if st.button(t["back_to_app"], use_container_width=True, key="btn_close_profile"):
+                st.session_state["view_mode"] = "main"
+                st.rerun()
 
         st.markdown("---")
         if st.button(t["logout"], use_container_width=True):
             st.session_state["password_correct"] = False
             st.session_state["current_user"] = None
+            st.session_state["view_mode"] = "main"
             st.rerun()
 
     # --- MAIN HEADER ---
@@ -354,7 +367,8 @@ if check_password(users_sheet):
         
     st.markdown("---")
 
-    if st.session_state.get("show_profile_page", False):
+    # Δυναμική προβολή ανάλογα με το κουμπί που πατήθηκε
+    if st.session_state["view_mode"] == "profile":
         st.subheader(t["settings"])
         render_profile(users_sheet, worksheet, current_user)
     else:
