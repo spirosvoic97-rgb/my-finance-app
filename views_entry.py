@@ -85,77 +85,92 @@ def render_entry(worksheet, current_user):
     with col_right:
         st.subheader("📸 Receipt Scanner (AI Vision)")
 
+        # Μηχανισμός επαναφοράς του uploader
         if "uploader_key" not in st.session_state:
             st.session_state["uploader_key"] = 0
+            
+        # Μνήμη για να κρατάμε τα αποτελέσματα του AI χωρίς να ξανακαλούμε το API
+        if "scan_results" not in st.session_state:
+            st.session_state["scan_results"] = None
 
         uploaded_receipt = st.file_uploader("Ανέβασμα Απόδειξης (JPG/PNG)", type=["jpg", "png", "jpeg"], key=f"ocr_file_{st.session_state['uploader_key']}")
 
-        scanned_amount, scanned_desc, scanned_category = 0.0, "Απόδειξη", EXPENSE_CATEGORIES[0]
-        extracted_items = []
-
         if uploaded_receipt is not None:
+            # Αν ο χρήστης ανεβάσει νέα/διαφορετική εικόνα, καθαρίζουμε τα παλιά αποτελέσματα
+            if "last_file_name" not in st.session_state or st.session_state["last_file_name"] != uploaded_receipt.name:
+                st.session_state["scan_results"] = None
+                st.session_state["last_file_name"] = uploaded_receipt.name
+
             img = Image.open(uploaded_receipt)
             try: img = ImageOps.exif_transpose(img)
             except Exception: pass
 
             st.image(img, caption="Απόδειξη προς Ανάλυση", use_container_width=True)
-
-            # Συμπίεση/Resize εικόνας πριν την αποστολή στο API
             img_bytes = process_image_for_api(img)
 
-            if "GEMINI_API_KEY" in st.secrets and str(st.secrets["GEMINI_API_KEY"]).strip() != "":
-                try:
-                    with st.spinner("🤖 Η AI αναλύει την απόδειξη... (παρακαλώ περιμένετε)"):
-                        client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
-                        
-                        prompt = (
-                            "Λειτουργείς ως αυστηρός λογιστής. Διάβασε την απόδειξη."
-                            "1. Βρες το τελικό πληρωτέο ποσό."
-                            "2. Βρες την επωνυμία της επιχείρησης."
-                            "3. Επίλεξε ΑΥΣΤΗΡΑ μία από τις κατηγορίες που σου δόθηκαν στο schema."
-                            "4. Κατάγραψε τα προϊόντα (αγνόησε εκπτώσεις, ΦΠΑ, και ρέστα)."
-                        )
-                        
-                        response = client.models.generate_content(
-                            model='gemini-3.6-flash',
-                            contents=[prompt, genai.types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')],
-                            config={
-                                'response_mime_type': 'application/json',
-                                'response_schema': ReceiptSchema,
-                                'temperature': 0.1
-                            }
-                        )
-                        
-                        parsed = json.loads(response.text)
-                        scanned_amount = float(parsed.get("amount", 0.0))
-                        scanned_desc = str(parsed.get("description", "Άγνωστο Κατάστημα"))
-                        temp_category = str(parsed.get("category", EXPENSE_CATEGORIES[0]))
-                        
-                        # Σκληρός έλεγχος για να μην σπάσει το selectbox
-                        scanned_category = temp_category if temp_category in EXPENSE_CATEGORIES else EXPENSE_CATEGORIES[0]
-                        extracted_items = parsed.get("items", [])
+            # ΑΣΦΑΛΕΙΑ 1: Το AI τρέχει ΜΟΝΟ αν πατηθεί το κουμπί
+            if st.button("🧠 Έναρξη Ανάλυσης AI", key="btn_start_ai"):
+                if "GEMINI_API_KEY" in st.secrets and str(st.secrets["GEMINI_API_KEY"]).strip() != "":
+                    try:
+                        with st.spinner("🤖 Η AI αναλύει την απόδειξη... (παρακαλώ περιμένετε)"):
+                            client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
+                            
+                            prompt = (
+                                "Λειτουργείς ως αυστηρός λογιστής. Διάβασε την απόδειξη."
+                                "1. Βρες το τελικό πληρωτέο ποσό."
+                                "2. Βρες την επωνυμία της επιχείρησης."
+                                "3. Επίλεξε ΑΥΣΤΗΡΑ μία από τις κατηγορίες που σου δόθηκαν στο schema."
+                                "4. Κατάγραψε τα προϊόντα (αγνόησε εκπτώσεις, ΦΠΑ, και ρέστα)."
+                            )
+                            
+                            response = client.models.generate_content(
+                                model='gemini-3.6-flash',
+                                contents=[prompt, genai.types.Part.from_bytes(data=img_bytes, mime_type='image/jpeg')],
+                                config={
+                                    'response_mime_type': 'application/json',
+                                    'response_schema': ReceiptSchema,
+                                    'temperature': 0.1
+                                }
+                            )
+                            
+                            parsed = json.loads(response.text)
+                            
+                            # ΑΣΦΑΛΕΙΑ 2: Αποθηκεύουμε τα δεδομένα στη μνήμη του session
+                            st.session_state["scan_results"] = parsed
+                            st.success("✅ Ανάλυση Ολοκληρώθηκε!")
+                    except Exception as e:
+                        st.error(f"⚠️ Σφάλμα AI κατά την ανάλυση: {e}")
 
-                        st.success(f"✅ Ανάλυση Ολοκληρώθηκε: {scanned_desc} - {scanned_amount:.2f}€")
-                except Exception as e:
-                    st.error("⚠️ Σφάλμα AI κατά την ανάλυση: Σιγουρευτείτε ότι η εικόνα είναι καθαρή.")
+            # Αν υπάρχουν αποθηκευμένα αποτελέσματα στη μνήμη, εμφάνισε τα πεδία διόρθωσης
+            if st.session_state["scan_results"] is not None:
+                res = st.session_state["scan_results"]
+                
+                st.markdown("---")
+                st.markdown("**🔍 Επιβεβαίωση Δεδομένων:**")
+                scanned_amount = st.number_input("Ποσό (€)", value=float(res.get("amount", 0.0)), step=0.10, key="scan_amt_tab")
+                scanned_desc = st.text_input("Περιγραφή", value=str(res.get("description", "Άγνωστο Κατάστημα")), key="scan_desc_tab")
+                
+                temp_cat = str(res.get("category", EXPENSE_CATEGORIES[0]))
+                safe_cat = temp_cat if temp_cat in EXPENSE_CATEGORIES else EXPENSE_CATEGORIES[0]
+                scanned_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(safe_cat), key="scan_cat_tab")
 
-            st.markdown("**🔍 Επιβεβαίωση Δεδομένων:**")
-            scanned_amount = st.number_input("Ποσό (€)", value=float(scanned_amount), step=0.10, key="scan_amt_tab")
-            scanned_desc = st.text_input("Περιγραφή", value=scanned_desc, key="scan_desc_tab")
-            scanned_category = st.selectbox("Κατηγορία", EXPENSE_CATEGORIES, index=EXPENSE_CATEGORIES.index(scanned_category), key="scan_cat_tab")
+                extracted_items = res.get("items", [])
+                if extracted_items:
+                    with st.expander("🛒 Αναλυτικά Προϊόντα Απόδειξης"):
+                        for item in extracted_items:
+                            st.write(f"• **{item.get('item_name')}**: {item.get('price'):.2f}€")
 
-            if extracted_items:
-                with st.expander("🛒 Αναλυτικά Προϊόντα Απόδειξης"):
-                    for item in extracted_items:
-                        st.write(f"• **{item.get('item_name')}**: {item.get('price'):.2f}€")
-
-            if st.button("📥 Άμεση Καταχώρηση Απόδειξης", key="scan_save_btn"):
-                today_str = str(datetime.date.today())
-                worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
-                st.cache_data.clear()
-                st.session_state["uploader_key"] += 1
-                st.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
-                st.rerun()
+                if st.button("📥 Άμεση Καταχώρηση Απόδειξης", key="scan_save_btn"):
+                    today_str = str(datetime.date.today())
+                    worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
+                    
+                    # Καθάρισμα μνήμης και UI μετά την αποθήκευση
+                    st.cache_data.clear()
+                    st.session_state["uploader_key"] += 1
+                    st.session_state["scan_results"] = None 
+                    
+                    st.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
+                    st.rerun()
 
     # --- BOTTOM SECTION: EDIT & DELETE RECENT ENTRIES ---
     st.markdown("---")
