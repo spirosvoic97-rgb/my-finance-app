@@ -40,7 +40,6 @@ def render_entry(worksheet, current_user, t=None):
         entry_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], horizontal=True, key="manual_type")
         date = st.date_input("Ημερομηνία", key="manual_date")
         
-        # Πεδία με Session State για αυτόματο μηδενισμό μετά την αποθήκευση
         description = st.text_input("Περιγραφή", key="manual_desc_input", placeholder="π.χ. Αλλαγή λαδιών")
 
         cats = INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES
@@ -73,20 +72,38 @@ def render_entry(worksheet, current_user, t=None):
         category = st.selectbox("Κατηγορία", cats, index=current_idx, key="manual_cat")
         amount = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f", key="manual_amt_input")
 
-        if st.button("Αποθήκευση Εγγραφής", key="manual_save"):
-            if not description or amount <= 0:
-                st.warning("⚠️ Παρακαλώ συμπληρώστε Περιγραφή και Ποσό μεγαλύτερο του 0.")
+        # Callback για ασφαλή αποθήκευση και καθαρισμό πεδίων
+        def save_manual_entry():
+            desc_val = st.session_state.get("manual_desc_input", "").strip()
+            amt_val = st.session_state.get("manual_amt_input", 0.0)
+            
+            if not desc_val or amt_val <= 0:
+                st.session_state["save_error"] = "⚠️ Παρακαλώ συμπληρώστε Περιγραφή και Ποσό μεγαλύτερο του 0."
             else:
-                worksheet.append_row([str(date), description, entry_type, category, float(amount), "Όχι", current_user], value_input_option="USER_ENTERED")
-                st.cache_data.clear()
-                
-                # Καθαρισμός πεδίων
-                if "selected_cat_idx" in st.session_state: del st.session_state["selected_cat_idx"]
-                st.session_state["manual_desc_input"] = ""
-                st.session_state["manual_amt_input"] = 0.0
-                
-                st.success("🎉 Η εγγραφή καταχωρήθηκε επιτυχώς!")
-                st.rerun()
+                try:
+                    worksheet.append_row(
+                        [str(st.session_state.get("manual_date")), desc_val, st.session_state.get("manual_type"), st.session_state.get("manual_cat"), float(amt_val), "Όχι", current_user],
+                        value_input_option="USER_ENTERED"
+                    )
+                    st.cache_data.clear()
+                    
+                    # Καθαρισμός πεδίων
+                    st.session_state["manual_desc_input"] = ""
+                    st.session_state["manual_amt_input"] = 0.0
+                    if "selected_cat_idx" in st.session_state: del st.session_state["selected_cat_idx"]
+                    
+                    st.session_state["save_success"] = "🎉 Η εγγραφή καταχωρήθηκε επιτυχώς!"
+                    st.session_state.pop("save_error", None)
+                except Exception as e:
+                    st.session_state["save_error"] = f"⚠️ Σφάλμα αποθήκευσης: {e}"
+
+        st.button("Αποθήκευση Εγγραφής", key="manual_save", on_click=save_manual_entry)
+
+        # Εμφάνιση μηνυμάτων
+        if "save_success" in st.session_state:
+            st.success(st.session_state.pop("save_success"))
+        if "save_error" in st.session_state:
+            st.warning(st.session_state.pop("save_error"))
 
     # --- RIGHT COLUMN: RECEIPT SCANNER ---
     with col_right:
