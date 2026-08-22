@@ -45,15 +45,52 @@ def render_dashboard(worksheet, current_user, t=None):
         st.warning("Δεν βρέθηκε στήλη 'Ημερομηνία'.")
         return
 
-    # --- ΦΙΛΤΡΑ ΕΤΟΥΣ & ΜΗΝΑ ---
-    st.markdown(f"#### {t.get('dash_filters', '📅 Φίλτρα Χρονικής Περιόδου')}")
-    col_filter1, col_filter2 = st.columns(2)
+    # --- 1. TOP METRICS (ΠΡΩΤΑ ΣΤΗΝ ΚΑΡΤΕΛΑ) ---
+    if "Ποσό" in df.columns:
+        numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+    else:
+        st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
+        return
+
+    type_col = "Τύπος" if "Τύπος" in df.columns else None
+    cat_col = "Κατηγορία" if "Κατηγορία" in df.columns else None
+
+    # Προετοιμασία προσωρινών φιλτραρισμένων δεδομένων για αρχική προβολή
+    temp_df = df.copy()
+    temp_amounts = numeric_amounts
+
+    total_income = temp_amounts[temp_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
+    total_expense = temp_amounts[temp_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
+    period_balance = total_income - total_expense
+
+    fixed_expenses = 0.0
+    if cat_col and type_col:
+        cat_series = temp_df[cat_col].astype(str).str.lower()
+        fixed_mask = (temp_df[type_col] == "Έξοδο") & (
+            cat_series.str.contains("πάγια", na=False) | 
+            cat_series.str.contains("λογαριασμ", na=False) | 
+            cat_series.str.contains("αποταμίευση", na=False)
+        )
+        fixed_expenses = temp_amounts[fixed_mask].sum()
+
+    safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
+
+    col1, col2, col3 = st.columns(3)
+    metric_inc = col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
+    metric_exp = col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
+    metric_safe = col3.metric("🟢 Safe to Spend", f"{safe_to_spend:.2f} €", help="Διαθέσιμο ποσό αφού υπολογιστούν τα Πάγια και η Αποταμίευση")
+
+    st.markdown("---")
+
+    # --- 2. ΦΙΛΤΡΑ & ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ (ΜΑΖΙ ΣΤΗ ΜΕΣΗ) ---
+    st.subheader("📋 Εγγραφές & Φίλτρα Περιόδου")
+    
+    col_filter1, col_filter2, col_sort_compact = st.columns([2, 2, 3])
 
     available_years = sorted([y for y in df["Έτος"].unique() if y != "0"], reverse=True)
     year_options = [t.get("all", "Όλα")] + available_years
-
     with col_filter1:
-        selected_year = st.selectbox(t.get("dash_year", "Επιλογή Έτους"), year_options, key="filter_year")
+        selected_year = st.selectbox(t.get("dash_year", "Έτος"), year_options, key="filter_year")
 
     filtered_df = df.copy()
     if selected_year != t.get("all", "Όλα"):
@@ -61,66 +98,48 @@ def render_dashboard(worksheet, current_user, t=None):
 
     available_months_num = sorted([m for m in filtered_df["Μήνας_Num"].unique() if m != 0])
     month_options = [t.get("all", "Όλοι")] + [month_names[m] for m in available_months_num]
-
     with col_filter2:
-        selected_month = st.selectbox(t.get("dash_month", "Επιλογή Μήνα"), month_options, key="filter_month")
+        selected_month = st.selectbox(t.get("dash_month", "Μήνας"), month_options, key="filter_month")
 
     if selected_month != t.get("all", "Όλοι"):
         filtered_df = filtered_df[filtered_df["Μήνας"] == selected_month]
 
-    st.markdown("---")
+    with col_sort_compact:
+        sort_order = st.selectbox(
+            "⇅ Ταξινόμηση κατά",
+            ["Ημερομηνία (Νεότερες)", "Ημερομηνία (Παλαιότερες)", "Ποσό (Μεγαλύτερα)", "Ποσό (Μικρότερα)"],
+            key="compact_sort_select"
+        )
+
+    # Ενημέρωση των Metrics με βάση τα φίλτρα
+    if not filtered_df.empty:
+        filtered_amounts = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+        total_income_f = filtered_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
+        total_expense_f = filtered_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
+        period_balance_f = total_income_f - total_expense_f
+        
+        fixed_expenses_f = 0.0
+        if cat_col and type_col:
+            cat_series_f = filtered_df[cat_col].astype(str).str.lower()
+            fixed_mask_f = (filtered_df[type_col] == "Έξοδο") & (
+                cat_series_f.str.contains("πάγια", na=False) | 
+                cat_series_f.str.contains("λογαριασμ", na=False) | 
+                cat_series_f.str.contains("αποταμίευση", na=False)
+            )
+            fixed_expenses_f = filtered_amounts[fixed_mask_f].sum()
+            
+        safe_to_spend_f = max(0.0, period_balance_f - fixed_expenses_f) if period_balance_f > 0 else 0.0
+        
+        metric_inc.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income_f:.2f} €")
+        metric_exp.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense_f:.2f} €")
+        metric_safe.metric("🟢 Safe to Spend", f"{safe_to_spend_f:.2f} €", help="Διαθέσιμο ποσό αφού υπολογιστούν τα Πάγια και η Αποταμίευση")
 
     if filtered_df.empty:
         st.warning("Δεν βρέθηκαν εγγραφές για τη συγκεκριμένη περίοδο.")
         return
 
-    if "Ποσό" in filtered_df.columns:
-        numeric_amounts = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
-    else:
-        st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
-        return
-
-    type_col = "Τύπος" if "Τύπος" in filtered_df.columns else None
-    cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
-
-    # --- ΕΛΕΓΧΟΣ SAFE TO SPEND (ΒΕΛΤΙΩΜΕΝΟΣ) ---
-    total_income = numeric_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
-    total_expense = numeric_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
-    period_balance = total_income - total_expense
-
-    fixed_expenses = 0.0
-    if cat_col and type_col:
-        cat_series = filtered_df[cat_col].astype(str).str.lower()
-        fixed_mask = (filtered_df[type_col] == "Έξοδο") & (
-            cat_series.str.contains("πάγια", na=False) | 
-            cat_series.str.contains("λογαριασμ", na=False) | 
-            cat_series.str.contains("αποταμίευση", na=False)
-        )
-        fixed_expenses = numeric_amounts[fixed_mask].sum()
-
-    safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
-    col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
-    col3.metric("🟢 Safe to Spend", f"{safe_to_spend:.2f} €", help="Διαθέσιμο ποσό αφού υπολογιστούν τα Πάγια και η Αποταμίευση")
-
-    st.markdown("---")
-
-    # --- COMPACT ΤΑΞΙΝΟΜΗΣΗ & ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ (ΕΠΑΝΩ) ---
-    col_table_title, col_sort_compact = st.columns([3, 2])
-    with col_table_title:
-        st.subheader("📋 Εγγραφές Περιόδου")
-    with col_sort_compact:
-        sort_order = st.selectbox(
-            "⇅ Ταξινόμηση κατά",
-            ["Ημερομηνία (Νεότερες)", "Ημερομηνία (Παλαιότερες)", "Ποσό (Μεγαλύτερα)", "Ποσό (Μικρότερα)"],
-            key="compact_sort_select",
-            label_visibility="collapsed"
-        )
-
-    filtered_df["Clean_Amount"] = numeric_amounts
-    filtered_df["Ποσό (€)"] = numeric_amounts
+    filtered_df["Clean_Amount"] = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+    filtered_df["Ποσό (€)"] = filtered_df["Clean_Amount"]
 
     # Εφαρμογή Ταξινόμησης
     if sort_order == "Ημερομηνία (Νεότερες)":
@@ -139,7 +158,7 @@ def render_dashboard(worksheet, current_user, t=None):
 
     st.markdown("---")
 
-    # --- DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ (ΚΑΤΩ) ---
+    # --- 3. DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ (ΚΑΤΩ) ---
     st.subheader("📊 Επιλογή Διαγράμματος")
     chart_choice = st.selectbox(
         "Διάλεξε γράφημα για προβολή:",
