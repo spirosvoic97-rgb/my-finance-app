@@ -1,7 +1,6 @@
 import streamlit as st
 import datetime
 import json
-import pandas as pd
 from io import BytesIO
 from PIL import Image, ImageOps
 from google import genai
@@ -133,74 +132,3 @@ def render_entry(worksheet, current_user, t=None):
                     st.session_state["scan_results"] = None 
                     st.success("🎉 Καταχωρήθηκε!")
                     st.rerun()
-
-    # --- TABLE SECTION: FULL DATA TABLE & EDITING ---
-    st.markdown("---")
-    st.subheader("📋 Όλες οι Καταχωρήσεις σου")
-
-    try: all_vals = worksheet.get_all_values()
-    except Exception: all_vals = []
-
-    if len(all_vals) > 1:
-        headers = [str(h).strip() for h in all_vals[0]]
-        df = pd.DataFrame(all_vals[1:], columns=headers)
-        
-        if "Username" in df.columns:
-            user_df = df[df["Username"] == current_user].copy()
-        else:
-            user_df = df.copy()
-
-        if not user_df.empty:
-            user_df["Sheet_Row"] = user_df.index + 2
-            user_df["Numeric_Amount"] = pd.to_numeric(user_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
-            user_df["Parsed_Date"] = pd.to_datetime(user_df["Ημερομηνία"], errors="coerce")
-
-            # Χειριστήριο Ταξινόμησης
-            sort_option = st.selectbox(
-                "📊 Ταξινόμηση πίνακα κατά:",
-                ["Ημερομηνία (Φθίνουσα)", "Ημερομηνία (Αύξουσα)", "Ποσό (Φθίνουσα)", "Ποσό (Αύξουσα)"],
-                key="sort_option_select"
-            )
-
-            if sort_option == "Ημερομηνία (Φθίνουσα)": user_df = user_df.sort_values(by="Parsed_Date", ascending=False)
-            elif sort_option == "Ημερομηνία (Αύξουσα)": user_df = user_df.sort_values(by="Parsed_Date", ascending=True)
-            elif sort_option == "Ποσό (Φθίνουσα)": user_df = user_df.sort_values(by="Numeric_Amount", ascending=False)
-            elif sort_option == "Ποσό (Αύξουσα)": user_df = user_df.sort_values(by="Numeric_Amount", ascending=True)
-
-            # 1. ΠΡΟΒΟΛΗ ΠΛΗΡΟΥΣ ΠΙΝΑΚΑ (Δεδομένα)
-            st.dataframe(user_df[["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]], use_container_width=True)
-
-            # 2. ΕΠΕΞΕΡΓΑΣΙΑ / ΔΙΑΓΡΑΦΗ ΕΓΓΡΑΦΗΣ
-            with st.expander("🛠️ Επεξεργασία ή Διαγραφή Συγκεκριμένης Εγγραφής"):
-                user_df["Select_Label"] = user_df.apply(lambda r: f"Γραμμή {r['Sheet_Row']}: {r.get('Ημερομηνία', '')} | {r.get('Περιγραφή', '')} | {r.get('Ποσό', '')}€", axis=1)
-                selected_label = st.selectbox("Επίλεξε εγγραφή:", user_df["Select_Label"].tolist(), key="select_edit_row")
-                selected_row_data = user_df[user_df["Select_Label"] == selected_label].iloc[0]
-                target_row_num = int(selected_row_data["Sheet_Row"])
-
-                col_e1, col_e2 = st.columns(2)
-                with col_e1:
-                    edit_desc = st.text_input("Νέα Περιγραφή", value=str(selected_row_data.get("Περιγραφή", "")), key="edit_desc")
-                    edit_type = st.selectbox("Νέος Τύπος", ["Έσοδο", "Έξοδο"], index=0 if selected_row_data.get("Τύπος") == "Έσοδο" else 1, key="edit_type")
-                with col_e2:
-                    edit_amount_val = float(str(selected_row_data.get("Ποσό", 0)).replace(",", ".")) if selected_row_data.get("Ποσό") else 0.0
-                    edit_amount = st.number_input("Νέο Ποσό (€)", value=edit_amount_val, step=0.10, key="edit_amt")
-                    all_cats = INCOME_CATEGORIES if edit_type == "Έσοδο" else EXPENSE_CATEGORIES
-                    old_cat = selected_row_data.get("Κατηγορία", "")
-                    edit_cat = st.selectbox("Νέα Κατηγορία", all_cats, index=all_cats.index(old_cat) if old_cat in all_cats else 0, key="edit_cat")
-
-                col_b1, col_b2 = st.columns(2)
-                with col_b1:
-                    if st.button("💾 Ενημέρωση", key="btn_update_row"):
-                        worksheet.update_cell(target_row_num, 2, edit_desc)
-                        worksheet.update_cell(target_row_num, 3, edit_type)
-                        worksheet.update_cell(target_row_num, 4, edit_cat)
-                        worksheet.update_cell(target_row_num, 5, edit_amount)
-                        st.cache_data.clear()
-                        st.success("✅ Ενημερώθηκε!")
-                        st.rerun()
-                with col_b2:
-                    if st.button("🗑️ Διαγραφή", key="btn_delete_row"):
-                        worksheet.delete_rows(target_row_num)
-                        st.cache_data.clear()
-                        st.success("🗑️ Διαγράφηκε!")
-                        st.rerun()
