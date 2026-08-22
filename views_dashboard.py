@@ -7,7 +7,7 @@ import calendar
 def render_dashboard(worksheet, current_user, t=None):
     if t is None: t = {}
 
-    # CSS FIX για να μην κόβονται τα tooltips στα κινητά
+    # CSS FIX για tooltips & dynamic progress bar color
     st.markdown("""
         <style>
             div[data-baseweb="popover"] {
@@ -90,7 +90,7 @@ def render_dashboard(worksheet, current_user, t=None):
         )
         return data_df.loc[fixed_mask, "Clean_Amount"].sum()
 
-    # --- 1. ΦΙΛΤΡΑ ΧΡΟΝΙΚΗΣ ΠΕΡΙΟΔΟΥ (ΕΠΑΝΩ) ---
+    # --- 1. ΦΙΛΤΡΑ ΧΡΟΝΙΚΗΣ ΠΕΡΙΟΔΟΥ ---
     st.markdown("#### 📅 Επιλογή Περιόδου")
     col_filter1, col_filter2 = st.columns(2)
 
@@ -118,7 +118,7 @@ def render_dashboard(worksheet, current_user, t=None):
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     days_remaining = max(1, days_in_month - today.day + 1)
 
-    # --- 2. DYNAMIC TOP METRICS (ΒΑΣΕΙ ΦΙΛΤΡΩΝ) ---
+    # --- 2. DYNAMIC TOP METRICS ---
     total_income = filtered_df[filtered_df[type_col] == "Έσοδο"]["Clean_Amount"].sum() if type_col else 0.0
     total_expense = filtered_df[filtered_df[type_col] == "Έξοδο"]["Clean_Amount"].sum() if type_col else 0.0
     period_balance = total_income - total_expense
@@ -128,29 +128,36 @@ def render_dashboard(worksheet, current_user, t=None):
     
     daily_safe_to_spend = free_balance / days_remaining
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
-    col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
-    col3.metric(
-        "🟢 Safe to Spend / ημέρα", 
-        f"{daily_safe_to_spend:.2f} € / μέρα", 
-        help="Το ημερήσιο όριο εξόδων (μετά τα πάγια), για να μη βγείτε εκτός προϋπολογισμού."
-    )
-
-    # Progress bar
+    # Υπολογισμός ποσοστού & χρώματος
     safe_ratio = 0.0
     if total_income > 0:
         safe_ratio = min(1.0, max(0.0, free_balance / total_income))
 
-    bar_color = "#28a745"
+    status_icon = "🟢"
+    bar_color = "#28a745" # Πράσινο (>50%)
     if safe_ratio < 0.20:
-        bar_color = "#dc3545"
+        status_icon = "🔴"
+        bar_color = "#dc3545" # Κόκκινο (<20%)
     elif safe_ratio < 0.50:
-        bar_color = "#ffc107"
+        status_icon = "🟡"
+        bar_color = "#ffc107" # Πορτοκαλί (20%-50%)
 
+    col1, col2, col3 = st.columns(3)
+    col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
+    col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
+    col3.metric(
+        f"{status_icon} Safe to Spend / ημέρα", 
+        f"{daily_safe_to_spend:.2f} € / μέρα", 
+        help="Το ημερήσιο όριο εξόδων (μετά τα πάγια), για να μη βγείτε εκτός προϋπολογισμού."
+    )
+
+    # DYNAMIC CSS FOR PROGRESS BAR COLOR
     st.markdown(f"""
         <style>
-            div[data-testid="stProgress"] > div > div > div > div {{
+            div[data-testid="stProgress"] > div > div > div {{
+                background-color: {bar_color} !important;
+            }}
+            div[data-testid="stProgress"] div[role="progressbar"] > div {{
                 background-color: {bar_color} !important;
             }}
         </style>
