@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import datetime
+import calendar
 
 def render_dashboard(worksheet, current_user, t=None):
     if t is None: t = {}
@@ -75,25 +77,36 @@ def render_dashboard(worksheet, current_user, t=None):
         )
         return amounts_series[fixed_mask].sum()
 
+    # --- YΠΟΛΟΓΙΣΜΟΣ ΗΜΕΡΩΝ ΠΟΥ ΑΠΟΜΕΝΟΥΝ ΣΤΟΝ ΜΗΝΑ ---
+    today = datetime.date.today()
+    days_in_month = calendar.monthrange(today.year, today.month)[1]
+    days_remaining = max(1, days_in_month - today.day + 1) # Συμπεριλαμβάνεται η σημερινή μέρα
+
     # --- 1. TOP METRICS ---
     total_income = numeric_amounts[df[type_col] == "Έσοδο"].sum() if type_col else 0.0
     total_expense = numeric_amounts[df[type_col] == "Έξοδο"].sum() if type_col else 0.0
     period_balance = total_income - total_expense
 
     fixed_exp_total = calculate_fixed_expenses(df, numeric_amounts)
-    safe_to_spend_total = max(0.0, period_balance - fixed_exp_total) if period_balance > 0 else 0.0
+    free_balance = max(0.0, period_balance - fixed_exp_total) if period_balance > 0 else 0.0
+    
+    # Ημερήσιο Safe to Spend
+    daily_safe_to_spend = free_balance / days_remaining
 
     col1, col2, col3 = st.columns(3)
-    metric_inc = col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
-    metric_exp = col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
-    metric_safe = col3.metric("🟢 Safe to Spend", f"{safe_to_spend_total:.2f} €", help="Διαθέσιμο υπόλοιπο μείων τα Πάγια/Λογαριασμούς & Αποταμίευση")
+    col1.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income:.2f} €")
+    col2.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense:.2f} €")
+    col3.metric(
+        "🟢 Safe to Spend / ημέρα", 
+        f"{daily_safe_to_spend:.2f} € / μέρα", 
+        help=f"Διαθέσιμο για ελεύθερη κατανάλωση τις επόμενες {days_remaining} ημέρες του μήνα."
+    )
 
-    # --- PROGRESS BAR & COLOR INJECTION ---
+    # --- PROGRESS BAR YΠΟΛΟΓΙΣΜΟΣ ---
     safe_ratio = 0.0
     if total_income > 0:
-        safe_ratio = min(1.0, max(0.0, safe_to_spend_total / total_income))
+        safe_ratio = min(1.0, max(0.0, free_balance / total_income))
 
-    # Χρώμα Μπάρας βάσει ποσοστού
     bar_color = "#28a745" # Πράσινο (>50%)
     if safe_ratio < 0.20:
         bar_color = "#dc3545" # Κόκκινο (<20%)
@@ -108,13 +121,12 @@ def render_dashboard(worksheet, current_user, t=None):
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("**🛡️ Safe to Spend Margin**")
+    st.markdown(f"**🛡️ Ημερήσιο Όριο & Περιθώριο ({days_remaining} μέρες απομένουν)**")
     st.progress(safe_ratio)
-    st.caption(f"Διαθέσιμο για ελεύθερη κατανάλωση: **{safe_ratio * 100:.1f}%** των συνολικών εσόδων.")
+    st.caption(f"Συνολικό ελεύθερο υπόλοιπο: **{free_balance:.2f} €** ({safe_ratio * 100:.1f}% των εσόδων).")
 
-    # Ειδοποίηση αν πέσει κάτω από 20%
     if safe_ratio < 0.20 and total_income > 0:
-        st.warning("⚠️ **Προσοχή:** Το περιθώριο ελεύθερων δαπανών σας βρίσκεται κάτω από το 20% των εσόδων σας!")
+        st.warning("⚠️ **Προσοχή:** Το ημερήσιο διαθέσιμο ποσό βρίσκεται σε πολύ χαμηλά επίπεδα!")
 
     st.markdown("---")
 
@@ -146,20 +158,6 @@ def render_dashboard(worksheet, current_user, t=None):
             ["Ημερομηνία (Νεότερες πρώτα)", "Ημερομηνία (Παλαιότερες πρώτα)", "Ποσό (Μεγαλύτερα)", "Ποσό (Μικρότερα)"],
             key="compact_sort_select"
         )
-
-    # Ενημέρωση των Metrics με βάση τα ενεργά φίλτρα
-    if not filtered_df.empty:
-        filtered_amounts = pd.to_numeric(filtered_df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
-        total_income_f = filtered_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
-        total_expense_f = filtered_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
-        period_balance_f = total_income_f - total_expense_f
-        
-        fixed_exp_f = calculate_fixed_expenses(filtered_df, filtered_amounts)
-        safe_to_spend_f = max(0.0, period_balance_f - fixed_exp_f) if period_balance_f > 0 else 0.0
-        
-        metric_inc.metric(t.get("dash_inc", "💰 Έσοδα Περιόδου"), f"{total_income_f:.2f} €")
-        metric_exp.metric(t.get("dash_exp", "💸 Έξοδα Περιόδου"), f"{total_expense_f:.2f} €")
-        metric_safe.metric("🟢 Safe to Spend", f"{safe_to_spend_f:.2f} €", help="Διαθέσιμο υπόλοιπο μείων τα Πάγια/Λογαριασμούς & Αποταμίευση")
 
     if filtered_df.empty:
         st.warning("Δεν βρέθηκαν εγγραφές για τη συγκεκριμένη περίοδο.")
