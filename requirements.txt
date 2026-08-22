@@ -6,3 +6,4 @@ bcrypt
 google-genai
 Pillow
 plotly
+openpyxl
