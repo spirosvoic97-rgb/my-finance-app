@@ -14,7 +14,7 @@ def render_dashboard(worksheet, current_user):
         st.info("Δεν υπάρχουν ακόμα εγγραφές στο Google Sheet.")
         return
 
-    # Δημιουργία DataFrame με βάση την πρώτη γραμμή ως επικεφαλίδες
+    # Δημιουργία DataFrame
     headers = data[0]
     rows = data[1:]
     df = pd.DataFrame(rows, columns=headers)
@@ -27,16 +27,16 @@ def render_dashboard(worksheet, current_user):
         st.info(f"Δεν βρέθηκαν εγγραφές για τον χρήστη {current_user}.")
         return
 
-    # Μετατροπή της στήλης Ποσό σε αριθμό
+    # Υπολογισμός ποσών σε ξεχωριστή αριθμητική στήλη
     if "Ποσό" in df.columns:
-        df["Ποσό"] = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
+        numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
     else:
         st.warning("Δεν βρέθηκε στήλη 'Ποσό' στο φύλλο εργασίας.")
         return
 
     # Υπολογισμός Συνόλων
-    total_income = df[df["Τύπος"] == "Έσοδο"]["Ποσό"].sum() if "Τύπος" in df.columns else 0.0
-    total_expense = df[df["Τύπος"] == "Έξοδο"]["Ποσό"].sum() if "Τύπος" in df.columns else 0.0
+    total_income = numeric_amounts[df["Τύπος"] == "Έσοδο"].sum() if "Τύπος" in df.columns else 0.0
+    total_expense = numeric_amounts[df["Τύπος"] == "Έξοδο"].sum() if "Τύπος" in df.columns else 0.0
     balance = total_income - total_expense
 
     # Εμφάνιση Metrics
@@ -47,16 +47,20 @@ def render_dashboard(worksheet, current_user):
 
     st.markdown("---")
 
-    # Ανάλυση Εξόδων ανά Κατηγορία
+    # Ανάλυση Εξόδων ανά Κατηγορία & Διάγραμμα
     if "Τύπος" in df.columns and "Κατηγορία" in df.columns:
-        df_expenses = df[df["Τύπος"] == "Έξοδο"]
-        if not df_expenses.empty:
+        df_expenses_mask = df["Τύπος"] == "Έξοδο"
+        if df_expenses_mask.any():
             st.subheader("📉 Έξοδα ανά Κατηγορία")
-            cat_summary = df_expenses.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
-            st.dataframe(cat_summary, use_container_width=True)
+            df_chart = pd.DataFrame({
+                "Κατηγορία": df.loc[df_expenses_mask, "Κατηγορία"],
+                "Ποσό": numeric_amounts[df_expenses_mask]
+            })
+            cat_summary = df_chart.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
             st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό")
 
-    # Πίνακας Τελευταίων Εγγραφών
+    # Πίνακας Τελευταίων Εγγραφών (Μετατροπή σε string για αποφυγή PyArrow ValueErrors)
     st.markdown("---")
     st.subheader("📋 Τελευταίες Εγγραφές")
-    st.dataframe(df.tail(10), use_container_width=True)
+    df_display = df.astype(str).tail(10)
+    st.dataframe(df_display, use_container_width=True)
