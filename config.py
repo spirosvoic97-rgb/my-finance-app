@@ -37,19 +37,25 @@ def get_sheets_connection():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # 1. Έλεγχος για connections.gsheets με private_key_base64
+        # 1. Έλεγχος για connections.gsheets
         if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
             gs_sec = st.secrets["connections"]["gsheets"]
             if "private_key_base64" in gs_sec:
-                # Αποκωδικοποίηση του Base64 JSON
-                decoded_bytes = base64.b64decode(gs_sec["private_key_base64"])
+                b64_str = str(gs_sec["private_key_base64"]).strip()
+                # Διόρθωση Base64 Padding
+                missing_padding = len(b64_str) % 4
+                if missing_padding:
+                    b64_str += '=' * (4 - missing_padding)
+                
+                decoded_bytes = base64.b64decode(b64_str)
                 creds_info = json.loads(decoded_bytes.decode("utf-8"))
                 credentials = Credentials.from_service_account_info(creds_info, scopes=scopes)
-            else:
+            elif "private_key" in gs_sec:
                 creds_dict = dict(gs_sec)
-                if "private_key" in creds_dict:
-                    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+                creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
                 credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+            else:
+                raise Exception("Δεν βρέθηκε private_key στα connections.gsheets")
                 
         # 2. Fallback σε gcp_service_account
         elif "gcp_service_account" in st.secrets:
