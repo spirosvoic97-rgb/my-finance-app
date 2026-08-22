@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import smtplib
 from email.mime.text import MIMEText
+import bcrypt
+import string
+import random
 from config import ICON_URL, get_sheets_connection
 from views_entry import render_entry
 from views_dashboard import render_dashboard
@@ -18,7 +21,7 @@ st.set_page_config(
 # --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
 def send_email(to_email, subject, body):
     if "email" not in st.secrets:
-        return False, "Δεν έχουν ρυθμιστεί τα Email Secrets στο Streamlit Cloud."
+        return False, "Δεν έχουν ρυθμιστεί τα Email Secrets."
     try:
         conf = st.secrets["email"]
         msg = MIMEText(body, "html", "utf-8")
@@ -49,7 +52,6 @@ def check_password(users_sheet):
         password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password", key="login_pass")
 
         if st.button("Σύνδεση", key="btn_login"):
-            passwords = st.secrets.get("passwords", {})
             sheet_users = {}
             try:
                 u_data = users_sheet.get_all_values()
@@ -63,18 +65,21 @@ def check_password(users_sheet):
             except Exception:
                 pass
 
-            if username_input in passwords and passwords[username_input] == password_input:
-                st.session_state["password_correct"] = True
-                st.session_state["current_user"] = username_input
-                st.session_state["user_email"] = sheet_users.get(username_input, {}).get("email", "")
-                st.rerun()
-            elif username_input in sheet_users and sheet_users[username_input]["pass"] == password_input:
-                st.session_state["password_correct"] = True
-                st.session_state["current_user"] = username_input
-                st.session_state["user_email"] = sheet_users[username_input]["email"]
-                st.rerun()
+            if username_input in sheet_users:
+                stored_hash = sheet_users[username_input]["pass"]
+                try:
+                    # Επαλήθευση του Hash
+                    if bcrypt.checkpw(password_input.encode('utf-8'), stored_hash.encode('utf-8')):
+                        st.session_state["password_correct"] = True
+                        st.session_state["current_user"] = username_input
+                        st.session_state["user_email"] = sheet_users[username_input]["email"]
+                        st.rerun()
+                    else:
+                        st.error("❌ Λανθασμένος Κωδικός Πρόσβασης.")
+                except ValueError:
+                    st.error("❌ Βρέθηκε παλιός, μη κρυπτογραφημένος κωδικός. Διαγράψτε τον χρήστη από το Excel και κάντε νέα εγγραφή.")
             else:
-                st.error("❌ Λανθασμένο Όνομα Χρήστη ή Κωδικός Πρόσβασης.")
+                st.error("❌ Δεν βρέθηκε χρήστης με αυτό το όνομα.")
 
     # SIGNUP TAB
     with tab_signup:
@@ -93,7 +98,9 @@ def check_password(users_sheet):
                 st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
             else:
                 try:
-                    users_sheet.append_row([new_email, new_pass, new_user], value_input_option="USER_ENTERED")
+                    # Κρυπτογράφηση του νέου κωδικού (Hashing)
+                    hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                    users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
                     st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
                 except Exception as e:
                     st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
@@ -103,33 +110,40 @@ def check_password(users_sheet):
         st.markdown("### 🔑 Ανάκτηση Κωδικού")
         reset_email = st.text_input("Εισάγετε το Email σας", key="reset_email").strip().lower()
 
-        if st.button("Αποστολή Κωδικού στο Email", key="btn_reset"):
+        if st.button("Αποστολή Προσωρινού Κωδικού", key="btn_reset"):
             if not reset_email:
                 st.warning("⚠️ Παρακαλώ συμπληρώστε το email σας.")
             else:
                 try:
                     u_data = users_sheet.get_all_values()
-                    found_pass, found_user = None, None
+                    found_user, found_row_index = None, None
                     if len(u_data) > 1:
-                        for row in u_data[1:]:
+                        for i, row in enumerate(u_data[1:], start=2):
                             if len(row) >= 3 and str(row[0]).strip().lower() == reset_email:
-                                found_pass = row[1]
                                 found_user = row[2]
+                                found_row_index = i
                                 break
 
-                    if found_pass:
-                        subject = "🔑 Ανάκτηση Κωδικού - Personal Finance Tracker"
+                    if found_row_index:
+                        # Δημιουργία τυχαίου 8-ψήφιου κωδικού
+                        temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+                        temp_hashed = bcrypt.hashpw(temp_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                        
+                        # Ενημέρωση του Excel με το νέο Hash
+                        users_sheet.update_cell(found_row_index, 2, temp_hashed)
+
+                        subject = "🔑 Νέος Κωδικός - Personal Finance Tracker"
                         body = f"""
                         <h3>Γεια σου {found_user},</h3>
-                        <p>Ζητήθηκε ανάκτηση κωδικού για την εφαρμογή Personal Finance Tracker.</p>
+                        <p>Ζητήθηκε ανάκτηση κωδικού για την εφαρμογή. Ορίστηκε ένας προσωρινός κωδικός.</p>
                         <p><b>Username:</b> {found_user}<br>
-                        <b>Password:</b> {found_pass}</p>
+                        <b>Προσωρινός Κωδικός:</b> <code>{temp_pass}</code></p>
                         <hr>
-                        <p><small>Αν δεν ζητήσατε εσείς την ανάκτηση, παρακαλούμε αγνοήστε αυτό το email.</small></p>
+                        <p><small>Συνδεθείτε με αυτόν τον κωδικό.</small></p>
                         """
                         ok, msg = send_email(reset_email, subject, body)
                         if ok:
-                            st.success("✅ Ο κωδικός σας στάλθηκε στο email σας!")
+                            st.success("✅ Ο νέος κωδικός σας στάλθηκε στο email σας!")
                         else:
                             st.error(f"⚠️ {msg}")
                     else:
@@ -142,31 +156,23 @@ def check_password(users_sheet):
 # --- HELPER: CALCULATE CURRENT BALANCE ---
 @st.cache_data(ttl=600)
 def get_cached_sheet_data(_worksheet):
-    """Κατεβάζει τα δεδομένα από το Excel και τα κρατάει στη μνήμη για 10 λεπτά."""
     return _worksheet.get_all_values()
 
 def get_current_balance(worksheet, current_user):
     try:
-        # Χρησιμοποιούμε τη cached συνάρτηση αντί να χτυπάμε το API της Google σε κάθε κλικ
         data = get_cached_sheet_data(worksheet)
-        
-        if not data or len(data) <= 1:
-            return 0.0
+        if not data or len(data) <= 1: return 0.0
         
         raw_headers = data[0]
         clean_headers = [str(h).strip() if str(h).strip() else f"Col_{i+1}" for i, h in enumerate(raw_headers)]
         df = pd.DataFrame(data[1:], columns=clean_headers)
 
-        if "Username" in df.columns:
-            df = df[df["Username"] == current_user]
-
-        if df.empty or "Ποσό" not in df.columns or "Τύπος" not in df.columns:
-            return 0.0
+        if "Username" in df.columns: df = df[df["Username"] == current_user]
+        if df.empty or "Ποσό" not in df.columns or "Τύπος" not in df.columns: return 0.0
 
         numeric_amounts = pd.to_numeric(df["Ποσό"].astype(str).str.replace(",", "."), errors="coerce").fillna(0.0)
         total_income = numeric_amounts[df["Τύπος"] == "Έσοδο"].sum()
         total_expense = numeric_amounts[df["Τύπος"] == "Έξοδο"].sum()
-        
         return total_income - total_expense
     except Exception as e:
         st.error(f"Σφάλμα υπολογισμού υπολοίπου: {e}")
@@ -176,7 +182,7 @@ def get_current_balance(worksheet, current_user):
 try:
     worksheet, users_sheet = get_sheets_connection()
 except Exception as e:
-    st.error(f"⚠️ Σφάλμα σύνδεσης με το Google Sheet: {e}")
+    st.error(f"⚠️ Σφάλμα σύνδεσης: {e}")
     st.stop()
 
 if check_password(users_sheet):
@@ -185,35 +191,15 @@ if check_password(users_sheet):
     user_balance = get_current_balance(worksheet, current_user)
 
     col_logo, col_title, col_balance = st.columns([1, 5, 4])
-    
-    with col_logo:
-        st.image(ICON_URL, width=55)
-        
+    with col_logo: st.image(ICON_URL, width=55)
     with col_title:
         st.title("Personal Finance Tracker")
         st.caption(f"Χρήστης: **{current_user}**" + (f" ({user_email})" if user_email else ""))
-        
-    with col_balance:
-        st.metric(label="💳 Διαθέσιμο Υπόλοιπο", value=f"{user_balance:.2f} €")
-
+    with col_balance: st.metric(label="💳 Διαθέσιμο Υπόλοιπο", value=f"{user_balance:.2f} €")
     st.markdown("---")
 
-    # --- APP NAVIGATION TABS ---
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "➕ Καταχώρηση", 
-        "📊 Analytics", 
-        "⚙️ Προφίλ", 
-        "💬 AI Assistant"
-    ])
-
-    with tab1:
-        render_entry(worksheet, current_user)
-
-    with tab2:
-        render_dashboard(worksheet, current_user)
-
-    with tab3:
-        render_profile(users_sheet, worksheet, current_user)
-
-    with tab4:
-        render_chat(worksheet, current_user)
+    tab1, tab2, tab3, tab4 = st.tabs(["➕ Καταχώρηση", "📊 Analytics", "⚙️ Προφίλ", "💬 AI Assistant"])
+    with tab1: render_entry(worksheet, current_user)
+    with tab2: render_dashboard(worksheet, current_user)
+    with tab3: render_profile(users_sheet, worksheet, current_user)
+    with tab4: render_chat(worksheet, current_user)
