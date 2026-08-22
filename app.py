@@ -67,7 +67,7 @@ TRANSLATIONS = {
         "settings": "⚙️ Ρυθμίσεις & Προφίλ",
         "back_to_app": "⬅️ Επιστροφή στην Εφαρμογή",
         "logout": "🚪 Αποσύνδεση",
-        "language": "🌐 Γλώσσα / Language"
+        "language": "🌐 Γλώσσα / Language",
         "dash_title": "📊 Αναφορές & Analytics",
         "dash_no_data": "Δεν υπάρχουν καταχωρημένα δεδομένα.",
         "dash_no_data_user": "Δεν βρέθηκαν εγγραφές για τον χρήστη.",
@@ -82,7 +82,7 @@ TRANSLATIONS = {
         "dash_no_exp": "Δεν υπάρχουν έξοδα για τη συγκεκριμένη περίοδο.",
         "dash_no_trend": "Δεν υπάρχουν δεδομένα τάσης.",
         "inc_label": "Έσοδα",
-        "exp_label": "Έξοδα",
+        "exp_label": "Έξοδοι",
         "all": "Όλα",
         "month": "Μήνας"
     },
@@ -116,7 +116,7 @@ TRANSLATIONS = {
         "settings": "⚙️ Settings & Profile",
         "back_to_app": "⬅️ Back to Main App",
         "logout": "🚪 Logout",
-        "language": "🌐 Language"
+        "language": "🌐 Language",
         "dash_title": "📊 Reports & Analytics",
         "dash_no_data": "No recorded data found.",
         "dash_no_data_user": "No entries found for this user.",
@@ -385,7 +385,7 @@ if check_password(users_sheet):
             st.session_state["view_mode"] = "main"
             st.rerun()
 
-    # --- MAIN VIEW SWITCHING (ΠΕΡΝΑΜΕ ΤΟ t ΠΑΝΤΟΥ) ---
+    # --- MAIN VIEW SWITCHING ---
     if st.session_state["view_mode"] == "profile":
         if st.button(t["back_to_app"], key="btn_top_back"):
             st.session_state["view_mode"] = "main"
