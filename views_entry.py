@@ -53,22 +53,20 @@ def render_entry(worksheet, current_user):
 
     with col_right:
         st.subheader("📸 Receipt Scanner (AI Vision)")
-        uploaded_receipt = st.file_uploader("Ανέβασμα Απόδειξης (JPG/PNG)", type=["jpg", "png", "jpeg"], key="ocr_file")
+
+        if "uploader_key" not in st.session_state:
+            st.session_state["uploader_key"] = 0
+
+        uploaded_receipt = st.file_uploader("Ανέβασμα Απόδειξης (JPG/PNG)", type=["jpg", "png", "jpeg"], key=f"ocr_file_{st.session_state['uploader_key']}")
 
         scanned_amount, scanned_desc, scanned_category = 0.0, "Απόδειξη", "Super Market"
 
         if uploaded_receipt is not None:
-            if "rotation_angle" not in st.session_state: st.session_state["rotation_angle"] = 0
-            if st.button("🔄 Περιστροφή 90°"): st.session_state["rotation_angle"] = (st.session_state["rotation_angle"] + 90) % 360
-
             img = Image.open(uploaded_receipt)
             try: img = ImageOps.exif_transpose(img)
             except Exception: pass
 
-            if st.session_state["rotation_angle"] != 0:
-                img = img.rotate(-st.session_state["rotation_angle"], expand=True)
-
-            st.image(img, caption=f"Απόδειξη ({st.session_state['rotation_angle']}°)", use_container_width=True)
+            st.image(img, caption="Απόδειξη", use_container_width=True)
 
             img_byte_arr = BytesIO()
             img.save(img_byte_arr, format='JPEG')
@@ -114,5 +112,8 @@ def render_entry(worksheet, current_user):
                 today_str = str(datetime.date.today())
                 worksheet.append_row([today_str, scanned_desc, "Έξοδο", scanned_category, scanned_amount, "Όχι", current_user], value_input_option="USER_ENTERED")
                 st.cache_data.clear()
+                
+                # Καθαρισμός του uploader για επόμενη φωτογραφία
+                st.session_state["uploader_key"] += 1
                 st.success("🎉 Η απόδειξη καταχωρήθηκε επιτυχώς!")
                 st.rerun()
