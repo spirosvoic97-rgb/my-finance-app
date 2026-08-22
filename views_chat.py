@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from google import genai
 
-def render_chat(worksheet, current_user):
+def render_chat(worksheet, current_user, t=None):
     st.subheader("💬 AI Financial Assistant")
     st.caption("Ρώτα την AI οτιδήποτε σχετικό με τα έξοδα, τα έσοδα και τις συνήθειές σου!")
 
