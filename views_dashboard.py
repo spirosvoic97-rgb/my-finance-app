@@ -154,7 +154,38 @@ def render_dashboard(worksheet, current_user, t=None):
     desired_cols = ["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]
     available_cols = [c for c in desired_cols if c in filtered_df.columns]
 
-    st.table(filtered_df[available_cols].astype(str))
+    # --- PAGINATION LOGIC (10 εγγραφές ανά σελίδα) ---
+    ITEMS_PER_PAGE = 10
+    total_items = len(filtered_df)
+    total_pages = max(1, (total_items + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE)
+
+    if "dash_page" not in st.session_state:
+        st.session_state["dash_page"] = 1
+
+    # Περιορισμός σε περίπτωση που άλλαξαν τα φίλτρα
+    if st.session_state["dash_page"] > total_pages:
+        st.session_state["dash_page"] = 1
+
+    start_idx = (st.session_state["dash_page"] - 1) * ITEMS_PER_PAGE
+    end_idx = start_idx + ITEMS_PER_PAGE
+    page_df = filtered_df.iloc[start_idx:end_idx]
+
+    st.table(page_df[available_cols].astype(str))
+
+    # Κουμπιά Σελιδοποίησης
+    col_prev, col_info, col_next = st.columns([1, 2, 1])
+    with col_prev:
+        if st.session_state["dash_page"] > 1:
+            if st.button("⬅️ Προηγούμενη", key="dash_prev_page", use_container_width=True):
+                st.session_state["dash_page"] -= 1
+                st.rerun()
+    with col_info:
+        st.markdown(f"<p style='text-align: center; margin-top: 5px;'><b>Σελίδα {st.session_state['dash_page']} από {total_pages}</b> ({total_items} εγγραφές)</p>", unsafe_allow_html=True)
+    with col_next:
+        if st.session_state["dash_page"] < total_pages:
+            if st.button("Επόμενη ➡️", key="dash_next_page", use_container_width=True):
+                st.session_state["dash_page"] += 1
+                st.rerun()
 
     st.markdown("---")
 
