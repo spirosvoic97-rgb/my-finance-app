@@ -7,17 +7,6 @@ import calendar
 def render_dashboard(worksheet, current_user, t=None):
     if t is None: t = {}
 
-    # CSS FIX για tooltips & dynamic progress bar color
-    st.markdown("""
-        <style>
-            div[data-baseweb="popover"] {
-                max-width: 85vw !important;
-                white-space: normal !important;
-                word-wrap: break-word !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-
     st.subheader(t.get("dash_title", "📊 Αναφορές & Analytics"))
 
     try:
@@ -151,13 +140,15 @@ def render_dashboard(worksheet, current_user, t=None):
         help="Το ημερήσιο όριο εξόδων (μετά τα πάγια), για να μη βγείτε εκτός προϋπολογισμού."
     )
 
-    # DYNAMIC CSS FOR PROGRESS BAR COLOR
+    # CSS FIX: ΑΛΛΑΓΗ ΧΡΩΜΑΤΟΣ ΜΟΝΟ ΣΤΟ ΓΕΜΑΤΟ ΜΕΡΟΣ ΤΗΣ ΜΠΑΡΑΣ (FILLED BAR ONLY)
     st.markdown(f"""
         <style>
-            div[data-testid="stProgress"] > div > div > div {{
-                background-color: {bar_color} !important;
+            div[data-baseweb="popover"] {{
+                max-width: 85vw !important;
+                white-space: normal !important;
+                word-wrap: break-word !important;
             }}
-            div[data-testid="stProgress"] div[role="progressbar"] > div {{
+            div[data-testid="stProgress"] div[role="progressbar"] > div > div {{
                 background-color: {bar_color} !important;
             }}
         </style>
