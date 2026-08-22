@@ -83,13 +83,20 @@ def render_dashboard(worksheet, current_user, t=None):
     type_col = "Τύπος" if "Τύπος" in filtered_df.columns else None
     cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
 
+    # --- ΕΛΕΓΧΟΣ SAFE TO SPEND (ΒΕΛΤΙΩΜΕΝΟΣ) ---
     total_income = numeric_amounts[filtered_df[type_col] == "Έσοδο"].sum() if type_col else 0.0
     total_expense = numeric_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
     period_balance = total_income - total_expense
 
     fixed_expenses = 0.0
     if cat_col and type_col:
-        fixed_mask = (filtered_df[type_col] == "Έξοδο") & (filtered_df[cat_col].isin(["Πάγια / Λογαριασμοί", "Αποταμίευση"]))
+        # Έλεγχος αν η κατηγορία περιέχει τις λέξεις Πάγια, Λογαριασμοί ή Αποταμίευση (Case-Insensitive)
+        cat_series = filtered_df[cat_col].astype(str).str.lower()
+        fixed_mask = (filtered_df[type_col] == "Έξοδο") & (
+            cat_series.str.contains("πάγια", na=False) | 
+            cat_series.str.contains("λογαριασμ", na=False) | 
+            cat_series.str.contains("αποταμίευση", na=False)
+        )
         fixed_expenses = numeric_amounts[fixed_mask].sum()
 
     safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
@@ -101,7 +108,39 @@ def render_dashboard(worksheet, current_user, t=None):
 
     st.markdown("---")
 
-    # --- DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ ---
+    # --- COMPACT ΤΑΞΙΝΟΜΗΣΗ & ΠΙΝΑΚΑΣ ΕΓΓΡΑΦΩΝ (ΕΠΑΝΩ) ---
+    col_table_title, col_sort_compact = st.columns([3, 2])
+    with col_table_title:
+        st.subheader("📋 Εγγραφές Περιόδου")
+    with col_sort_compact:
+        sort_order = st.selectbox(
+            "⇅ Ταξινόμηση κατά",
+            ["Ημερομηνία (Νεότερες)", "Ημερομηνία (Παλαιότερες)", "Ποσό (Μεγαλύτερα)", "Ποσό (Μικρότερα)"],
+            key="compact_sort_select",
+            label_visibility="collapsed"
+        )
+
+    filtered_df["Clean_Amount"] = numeric_amounts
+    filtered_df["Ποσό (€)"] = numeric_amounts
+
+    # Εφαρμογή Ταξινόμησης
+    if sort_order == "Ημερομηνία (Νεότερες)":
+        filtered_df = filtered_df.sort_values(by="Date_Parsed", ascending=False)
+    elif sort_order == "Ημερομηνία (Παλαιότερες)":
+        filtered_df = filtered_df.sort_values(by="Date_Parsed", ascending=True)
+    elif sort_order == "Ποσό (Μεγαλύτερα)":
+        filtered_df = filtered_df.sort_values(by="Clean_Amount", ascending=False)
+    elif sort_order == "Ποσό (Μικρότερα)":
+        filtered_df = filtered_df.sort_values(by="Clean_Amount", ascending=True)
+
+    desired_cols = ["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]
+    available_cols = [c for c in desired_cols if c in filtered_df.columns]
+
+    st.table(filtered_df[available_cols].astype(str))
+
+    st.markdown("---")
+
+    # --- DROP-DOWN SELECTOR ΓΙΑ ΕΠΙΛΟΓΗ ΔΙΑΓΡΑΜΜΑΤΟΣ (ΚΑΤΩ) ---
     st.subheader("📊 Επιλογή Διαγράμματος")
     chart_choice = st.selectbox(
         "Διάλεξε γράφημα για προβολή:",
@@ -114,9 +153,6 @@ def render_dashboard(worksheet, current_user, t=None):
         ],
         key="chart_selector"
     )
-
-    filtered_df["Clean_Amount"] = numeric_amounts
-    filtered_df["Ποσό (€)"] = numeric_amounts
 
     if chart_choice == "📉 Κατανομή Εξόδων (Πίτα)":
         df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
@@ -189,13 +225,3 @@ def render_dashboard(worksheet, current_user, t=None):
         )
         fig.update_layout(dragmode=False)
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-
-    # Πίνακας Εγγραφών
-    st.markdown("---")
-    st.subheader("📋 Εγγραφές Περιόδου")
-
-    desired_cols = ["Ημερομηνία", "Περιγραφή", "Τύπος", "Κατηγορία", "Ποσό"]
-    available_cols = [c for c in desired_cols if c in filtered_df.columns]
-
-    df_display = filtered_df[available_cols].tail(15).astype(str)
-    st.table(df_display)
