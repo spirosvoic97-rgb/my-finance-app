@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import datetime
+import plotly.express as px
 
 def render_dashboard(worksheet, current_user):
     st.subheader("📊 Αναφορές & Analytics")
@@ -88,8 +88,7 @@ def render_dashboard(worksheet, current_user):
     total_expense = numeric_amounts[filtered_df[type_col] == "Έξοδο"].sum() if type_col else 0.0
     period_balance = total_income - total_expense
 
-    # Υπολογισμός Safe to Spend (Υπόλοιπο περιόδου - Πάγια/Αποταμίευση ή 70% του διαθέσιμου)
-    # Safe to spend = Υπόλοιπο - Έξοδα Κατηγορίας "Πάγια / Λογαριασμοί" & "Αποταμίευση"
+    # Υπολογισμός Safe to Spend (Υπόλοιπο - Πάγια/Αποταμίευση)
     cat_col = "Κατηγορία" if "Κατηγορία" in filtered_df.columns else None
     fixed_expenses = 0.0
     if cat_col and type_col:
@@ -98,7 +97,7 @@ def render_dashboard(worksheet, current_user):
 
     safe_to_spend = max(0.0, period_balance - fixed_expenses) if period_balance > 0 else 0.0
 
-    # Εμφάνιση Metrics (Αντικατάσταση Υπολοίπου με Safe to Spend)
+    # Εμφάνιση Metrics
     col1, col2, col3 = st.columns(3)
     col1.metric("💰 Έσοδα Περιόδου", f"{total_income:.2f} €")
     col2.metric("💸 Έξοδα Περιόδου", f"{total_expense:.2f} €")
@@ -106,19 +105,34 @@ def render_dashboard(worksheet, current_user):
 
     st.markdown("---")
 
-    # Ανάλυση Εξόδων ανά Κατηγορία & Σταθερό Διάγραμμα (Χωρίς αυτόματο Zoom)
+    # ΠΙΤΑ ΕΞΟΔΩΝ ΜΕ PLOTLY (XΩΡΙΣ ΑΥΤΟΜΑΤΟ ZOOM)
     if type_col and cat_col:
         df_expenses_mask = filtered_df[type_col] == "Έξοδο"
         if df_expenses_mask.any():
-            st.subheader("📉 Έξοδα ανά Κατηγορία")
+            st.subheader("📉 Κατανομή Εξόδων (Πίτα)")
             df_chart = pd.DataFrame({
                 "Κατηγορία": filtered_df.loc[df_expenses_mask, cat_col],
                 "Ποσό": numeric_amounts[df_expenses_mask]
             })
             cat_summary = df_chart.groupby("Κατηγορία")["Ποσό"].sum().reset_index()
-            
-            # st.bar_chart χωρίς αυτόματο zoom/touch interference
-            st.bar_chart(data=cat_summary, x="Κατηγορία", y="Ποσό", use_container_width=True)
+
+            # Δημιουργία Donut/Pie Chart
+            fig = px.pie(
+                cat_summary, 
+                values="Ποσό", 
+                names="Κατηγορία", 
+                hole=0.4,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            fig.update_layout(
+                showlegend=True,
+                margin=dict(t=10, b=10, l=10, r=10),
+                dragmode=False  # Απενεργοποίηση Drag/Zoom για κινητά
+            )
+
+            # Προβολή με απενεργοποιημένο το interactive toolbar
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False, 'scrollZoom': False})
 
     # Πίνακας Εγγραφών (ΜΟΝΟ οι 5 βασικές στήλες)
     st.markdown("---")
