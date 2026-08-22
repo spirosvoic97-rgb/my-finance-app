@@ -113,13 +113,13 @@ def render_dashboard(worksheet, current_user):
         key="chart_selector"
     )
 
-    filtered_df["Clean_Amount"] = numeric_amounts
+    filtered_df["Ποσό (€)"] = numeric_amounts
 
     if chart_choice == "📉 Κατανομή Εξόδων (Πίτα)":
         df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
         if not df_exp.empty:
-            cat_sum = df_exp.groupby(cat_col)["Clean_Amount"].sum().reset_index()
-            fig = px.pie(cat_sum, values="Clean_Amount", names=cat_col, hole=0.4, title="Κατανομή Εξόδων ανά Κατηγορία")
+            cat_sum = df_exp.groupby(cat_col)["Ποσό (€)"].sum().reset_index()
+            fig = px.pie(cat_sum, values="Ποσό (€)", names=cat_col, hole=0.4, title="Κατανομή Εξόδων ανά Κατηγορία")
             fig.update_traces(textposition='inside', textinfo='percent+label')
             fig.update_layout(dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
@@ -129,8 +129,8 @@ def render_dashboard(worksheet, current_user):
     elif chart_choice == "📈 Κατανομή Εσόδων (Πίτα)":
         df_inc = filtered_df[filtered_df[type_col] == "Έσοδο"]
         if not df_inc.empty:
-            cat_sum = df_inc.groupby(cat_col)["Clean_Amount"].sum().reset_index()
-            fig = px.pie(cat_sum, values="Clean_Amount", names=cat_col, hole=0.4, title="Κατανομή Εσόδων ανά Κατηγορία")
+            cat_sum = df_inc.groupby(cat_col)["Ποσό (€)"].sum().reset_index()
+            fig = px.pie(cat_sum, values="Ποσό (€)", names=cat_col, hole=0.4, title="Κατανομή Εσόδων ανά Κατηγορία")
             fig.update_traces(textposition='inside', textinfo='percent+label')
             fig.update_layout(dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
@@ -140,8 +140,16 @@ def render_dashboard(worksheet, current_user):
     elif chart_choice == "📊 Έξοδα ανά Κατηγορία (Ράβδοι)":
         df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
         if not df_exp.empty:
-            cat_sum = df_exp.groupby(cat_col)["Clean_Amount"].sum().reset_index()
-            fig = px.bar(cat_sum, x=cat_col, y="Clean_Amount", color=cat_col, title="Έξοδα ανά Κατηγορία", text_auto='.2f')
+            cat_sum = df_exp.groupby(cat_col)["Ποσό (€)"].sum().reset_index()
+            fig = px.bar(
+                cat_sum, 
+                x=cat_col, 
+                y="Ποσό (€)", 
+                color=cat_col, 
+                title="Έξοδα ανά Κατηγορία", 
+                text_auto='.2f',
+                labels={"Ποσό (€)": "Ποσό (€)", cat_col: "Κατηγορία"}
+            )
             fig.update_layout(dragmode=False, showlegend=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
@@ -150,15 +158,32 @@ def render_dashboard(worksheet, current_user):
     elif chart_choice == "📊 Σωρευτικό Διάγραμμα Εξόδων (Stacked)":
         df_exp = filtered_df[filtered_df[type_col] == "Έξοδο"]
         if not df_exp.empty:
-            fig = px.bar(df_exp, x="Μήνας", y="Clean_Amount", color=cat_col, title="Σωρευτική Ανάλυση Εξόδων ανά Μήνα", barmode="stack")
+            fig = px.bar(
+                df_exp, 
+                x="Μήνας", 
+                y="Ποσό (€)", 
+                color=cat_col, 
+                title="Σωρευτική Ανάλυση Εξόδων ανά Μήνα", 
+                barmode="stack",
+                labels={"Ποσό (€)": "Ποσό (€)", "Μήνας": "Μήνας", cat_col: "Κατηγορία"}
+            )
             fig.update_layout(dragmode=False)
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         else:
             st.info("Δεν υπάρχουν έξοδα για προβολή.")
 
     elif chart_choice == "⚖️ Σύγκριση Εσόδων vs Εξόδων":
-        type_sum = filtered_df.groupby([type_col, "Μήνας"])["Clean_Amount"].sum().reset_index()
-        fig = px.bar(type_sum, x="Μήνας", y="Clean_Amount", color=type_col, barmode="group", title="Σύγκριση Εσόδων & Εξόδων ανά Μήνα", text_auto='.2f')
+        type_sum = filtered_df.groupby([type_col, "Μήνας"])["Ποσό (€)"].sum().reset_index()
+        fig = px.bar(
+            type_sum, 
+            x="Μήνας", 
+            y="Ποσό (€)", 
+            color=type_col, 
+            barmode="group", 
+            title="Σύγκριση Εσόδων & Εξόδων ανά Μήνα", 
+            text_auto='.2f',
+            labels={"Ποσό (€)": "Ποσό (€)", "Μήνας": "Μήνας", type_col: "Τύπος"}
+        )
         fig.update_layout(dragmode=False)
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
