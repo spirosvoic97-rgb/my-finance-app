@@ -5,7 +5,7 @@ from email.mime.text import MIMEText
 import bcrypt
 import string
 import random
-from config import ICON_URL, get_sheets_connection
+from config import get_sheets_connection
 from views_entry import render_entry
 from views_dashboard import render_dashboard
 from views_profile import render_profile
@@ -15,17 +15,31 @@ from views_chat import render_chat
 st.set_page_config(
     page_title="Personal Finance App",
     page_icon="💰",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+# --- CSS INJECTION: HIDE STREAMLIT TOOLBAR & TOP MENU ---
+st.markdown("""
+    <style>
+        #MainMenu {visibility: hidden;}
+        header {visibility: hidden;}
+        footer {visibility: hidden;}
+        .stDeployButton {display:none;}
+        div[data-testid="stDecoration"] {display:none;}
+        div[data-testid="stToolbar"] {visibility: hidden !important;}
+        div[data-testid="stStatusWidget"] {visibility: hidden !important;}
+    </style>
+""", unsafe_allow_html=True)
 
 # --- TRANSLATIONS (i18n) ---
 TRANSLATIONS = {
     "EL": {
-        "login_title": "🔐 Σύνδεση στο Finance App",
-        "signup_title": "📝 Δημιουργία Νέου Λογαριασμού",
+        "login_title": "🔐 Σύνδεση",
+        "signup_title": "📝 Δημιουργία Λογαριασμού",
         "reset_title": "🔑 Ανάκτηση Κωδικού",
-        "username": "Όνομα Χρήστη (Username)",
-        "password": "Κωδικός Πρόσβασης (Password)",
+        "username": "Όνομα Χρήστη",
+        "password": "Κωδικός Πρόσβασης",
         "confirm_pass": "Επιβεβαίωση Κωδικού",
         "email": "Email",
         "login_btn": "Σύνδεση",
@@ -44,13 +58,16 @@ TRANSLATIONS = {
         "reset_sent": "✅ Ο νέος κωδικός στάλθηκε στο email σας!",
         "nav_entry": "➕ Καταχώρηση",
         "nav_analytics": "📊 Analytics",
-        "nav_profile": "⚙️ Προφίλ",
         "nav_ai": "💬 AI Assistant",
-        "balance": "💳 Διαθέσιμο Υπόλοιπο"
+        "balance": "💳 Διαθέσιμο Υπόλοιπο",
+        "welcome": "Καλώς ήρθες",
+        "settings": "⚙️ Ρυθμίσεις & Προφίλ",
+        "logout": "🚪 Αποσύνδεση",
+        "language": "🌐 Γλώσσα / Language"
     },
     "EN": {
-        "login_title": "🔐 Login to Finance App",
-        "signup_title": "📝 Create New Account",
+        "login_title": "🔐 Login",
+        "signup_title": "📝 Create Account",
         "reset_title": "🔑 Password Recovery",
         "username": "Username",
         "password": "Password",
@@ -58,27 +75,30 @@ TRANSLATIONS = {
         "email": "Email",
         "login_btn": "Login",
         "signup_btn": "Create Account",
-        "reset_btn": "Send Temporary Password",
+        "reset_btn": "Send Temp Password",
         "no_account": "Don't have an account? Sign Up",
         "have_account": "Already have an account? Login",
         "forgot_pass": "Forgot password?",
-        "pass_rules": "Password must contain: min 8 chars, 1 uppercase, 1 number, 1 symbol.",
+        "pass_rules": "Min 8 chars, 1 uppercase, 1 number, 1 symbol.",
         "fill_all": "⚠️ Please fill in all fields.",
         "invalid_email": "❌ Please enter a valid Email.",
         "pass_mismatch": "❌ Passwords do not match.",
         "signup_success": "🎉 Account created successfully! You can now login.",
         "wrong_pass": "❌ Incorrect Password.",
         "user_not_found": "❌ User not found.",
-        "reset_sent": "✅ A new temporary password was sent to your email!",
+        "reset_sent": "✅ Temporary password sent to email!",
         "nav_entry": "➕ Entries",
         "nav_analytics": "📊 Analytics",
-        "nav_profile": "⚙️ Profile",
         "nav_ai": "💬 AI Assistant",
-        "balance": "💳 Available Balance"
+        "balance": "💳 Available Balance",
+        "welcome": "Welcome back",
+        "settings": "⚙️ Settings & Profile",
+        "logout": "🚪 Logout",
+        "language": "🌐 Language"
     }
 }
 
-# --- LANGUAGE SELECTOR IN SESSION STATE ---
+# --- STATE INITIALIZATION ---
 if "lang" not in st.session_state:
     st.session_state["lang"] = "EL"
 
@@ -93,7 +113,7 @@ def is_strong_password(password):
     if not any(c.isdigit() for c in password):
         return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 αριθμό / At least 1 number."
     if not any(c in string.punctuation for c in password):
-        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο / At least 1 symbol (@, #, $, etc)."
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο / At least 1 symbol."
     return True, ""
 
 # --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
@@ -116,19 +136,18 @@ def send_email(to_email, subject, body):
     except Exception as e:
         return False, f"Email error: {e}"
 
-# --- SINGLE AUTHENTICATION SCREEN LOGIC ---
+# --- AUTHENTICATION SCREEN LOGIC ---
 def check_password(users_sheet):
     if st.session_state.get("password_correct", False):
         return True
 
-    # Initialize Mode
     if "auth_mode" not in st.session_state:
         st.session_state["auth_mode"] = "login"
 
     # Top Bar Language Switcher
     col_space, col_lang = st.columns([5, 1])
     with col_lang:
-        selected_lang = st.selectbox("🌐 Language", ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="lang_select")
+        selected_lang = st.selectbox("🌐", ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="auth_lang_select")
         if selected_lang != st.session_state["lang"]:
             st.session_state["lang"] = selected_lang
             st.rerun()
@@ -137,7 +156,6 @@ def check_password(users_sheet):
 
     col_main, _ = st.columns([2, 1])
     with col_main:
-        # MODE 1: LOGIN
         if st.session_state["auth_mode"] == "login":
             st.markdown(f"### {t['login_title']}")
             with st.form(key="login_form"):
@@ -173,7 +191,7 @@ def check_password(users_sheet):
                                 else:
                                     st.error(t["wrong_pass"])
                             except ValueError:
-                                st.error("❌ Legacy plain-text password found. Please delete user from Sheet and re-register.")
+                                st.error("❌ Legacy plain-text password found. Delete user from Sheet and re-register.")
                         else:
                             st.error(t["user_not_found"])
 
@@ -187,7 +205,6 @@ def check_password(users_sheet):
                     st.session_state["auth_mode"] = "reset"
                     st.rerun()
 
-        # MODE 2: SIGNUP
         elif st.session_state["auth_mode"] == "signup":
             st.markdown(f"### {t['signup_title']}")
             with st.form(key="signup_form"):
@@ -223,7 +240,6 @@ def check_password(users_sheet):
                 st.session_state["auth_mode"] = "login"
                 st.rerun()
 
-        # MODE 3: RESET PASSWORD
         elif st.session_state["auth_mode"] == "reset":
             st.markdown(f"### {t['reset_title']}")
             with st.form(key="reset_form"):
@@ -301,27 +317,49 @@ except Exception as e:
 
 if check_password(users_sheet):
     current_user = st.session_state["current_user"]
-    user_email = st.session_state.get("user_email", "")
     user_balance = get_current_balance(worksheet, current_user)
     t = TRANSLATIONS[st.session_state["lang"]]
 
-    col_logo, col_title, col_balance, col_lang = st.columns([1, 4, 3, 1])
-    with col_logo: st.image(ICON_URL, width=55)
-    with col_title:
-        st.title("Personal Finance Tracker")
-        st.caption(f"User: **{current_user}**" + (f" ({user_email})" if user_email else ""))
-    with col_balance: 
-        st.metric(label=t["balance"], value=f"{user_balance:.2f} €")
-    with col_lang:
-        selected_lang = st.selectbox("🌐", ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="main_lang_select")
+    # --- SIDEBAR (ΓΡΑΝΑΖΙ / ΡΥΘΜΙΣΕΙΣ / LOGOUT) ---
+    with st.sidebar:
+        st.title(f"👤 {current_user}")
+        st.markdown("---")
+        
+        # Εναλλαγή Γλώσσας στο Sidebar
+        selected_lang = st.selectbox(t["language"], ["EL", "EN"], index=0 if st.session_state["lang"] == "EL" else 1, key="sidebar_lang")
         if selected_lang != st.session_state["lang"]:
             st.session_state["lang"] = selected_lang
             st.rerun()
 
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # Κουμπί για μετάβαση στο Προφίλ / Ρυθμίσεις
+        show_settings = st.checkbox(t["settings"], value=st.session_state.get("show_profile_page", False))
+        st.session_state["show_profile_page"] = show_settings
+
+        st.markdown("---")
+        # Αποσύνδεση
+        if st.button(t["logout"], use_container_width=True):
+            st.session_state["password_correct"] = False
+            st.session_state["current_user"] = None
+            st.rerun()
+
+    # --- MAIN HEADER ---
+    col_title, col_balance = st.columns([5, 3])
+    with col_title:
+        st.title("Personal Finance Tracker")
+        st.caption(f"{t['welcome']}, **{current_user}** 👋")
+    with col_balance: 
+        st.metric(label=t["balance"], value=f"{user_balance:.2f} €")
+        
     st.markdown("---")
 
-    tab1, tab2, tab3, tab4 = st.tabs([t["nav_entry"], t["nav_analytics"], t["nav_profile"], t["nav_ai"]])
-    with tab1: render_entry(worksheet, current_user)
-    with tab2: render_dashboard(worksheet, current_user)
-    with tab3: render_profile(users_sheet, worksheet, current_user)
-    with tab4: render_chat(worksheet, current_user)
+    # Αν ο χρήστης τσεκάρει το Γρανάζι στο Sidebar, δείχνουμε το Προφίλ
+    if st.session_state.get("show_profile_page", False):
+        st.subheader(t["settings"])
+        render_profile(users_sheet, worksheet, current_user)
+    else:
+        tab1, tab2, tab3 = st.tabs([t["nav_entry"], t["nav_analytics"], t["nav_ai"]])
+        with tab1: render_entry(worksheet, current_user)
+        with tab2: render_dashboard(worksheet, current_user)
+        with tab3: render_chat(worksheet, current_user)
