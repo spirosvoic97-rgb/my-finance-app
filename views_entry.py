@@ -40,7 +40,7 @@ def render_entry(worksheet, current_user, t=None):
         entry_type = st.radio("Τύπος", ["Έσοδο", "Έξοδο"], horizontal=True, key="manual_type")
         date = st.date_input("Ημερομηνία", key="manual_date")
         
-        description = st.text_input("Περιγραφή", key="manual_desc_input", placeholder="π.χ. Αλλαγή λαδιών")
+        description = st.text_input("Περιγραφή (Προαιρετικό)", key="manual_desc_input", placeholder="π.χ. Αλλαγή λαδιών")
 
         cats = INCOME_CATEGORIES if entry_type == "Έσοδο" else EXPENSE_CATEGORIES
         
@@ -72,13 +72,13 @@ def render_entry(worksheet, current_user, t=None):
         category = st.selectbox("Κατηγορία", cats, index=current_idx, key="manual_cat")
         amount = st.number_input("Ποσό (€)", min_value=0.0, format="%.2f", key="manual_amt_input")
 
-        # Callback για ασφαλή αποθήκευση και καθαρισμό πεδίων
+        # Callback για αποθήκευση (μόνο το Ποσό είναι υποχρεωτικό > 0)
         def save_manual_entry():
             desc_val = st.session_state.get("manual_desc_input", "").strip()
             amt_val = st.session_state.get("manual_amt_input", 0.0)
             
-            if not desc_val or amt_val <= 0:
-                st.session_state["save_error"] = "⚠️ Παρακαλώ συμπληρώστε Περιγραφή και Ποσό μεγαλύτερο του 0."
+            if amt_val <= 0:
+                st.session_state["save_error"] = "⚠️ Παρακαλώ εισάγετε Ποσό μεγαλύτερο του 0."
             else:
                 try:
                     worksheet.append_row(
