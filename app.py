@@ -28,7 +28,7 @@ def is_strong_password(password):
     if not any(c.isdigit() for c in password):
         return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 αριθμό."
     if not any(c in string.punctuation for c in password):
-        return False, f"Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο (π.χ. @, #, $, %, !)."
+        return False, "Ο κωδικός πρέπει να περιέχει τουλάχιστον 1 ειδικό σύμβολο (π.χ. @, #, $, %, !)."
     return True, ""
 
 # --- HELPER: EMAIL SENDER FOR PASSWORD RESET ---
@@ -61,113 +61,122 @@ def check_password(users_sheet):
     # LOGIN TAB
     with tab_login:
         st.markdown("### 🔐 Σύνδεση στο Finance App")
-        username_input = st.text_input("Όνομα Χρήστη (Username)", key="login_user").strip()
-        password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password", key="login_pass")
+        with st.form(key="login_form"):
+            username_input = st.text_input("Όνομα Χρήστη (Username)").strip()
+            password_input = st.text_input("Κωδικός Πρόσβασης (Password)", type="password")
+            
+            submit_login = st.form_submit_button("Σύνδεση")
 
-        if st.button("Σύνδεση", key="btn_login"):
-            sheet_users = {}
-            try:
-                u_data = users_sheet.get_all_values()
-                if len(u_data) > 1:
-                    for row in u_data[1:]:
-                        if len(row) >= 3:
-                            em = str(row[0]).strip().lower()
-                            pw = str(row[1]).strip()
-                            uname = str(row[2]).strip()
-                            sheet_users[uname] = {"pass": pw, "email": em}
-            except Exception:
-                pass
+            if submit_login:
+                if not username_input or not password_input:
+                    st.warning("⚠️ Συμπληρώστε και τα δύο πεδία.")
+                else:
+                    sheet_users = {}
+                    try:
+                        u_data = users_sheet.get_all_values()
+                        if len(u_data) > 1:
+                            for row in u_data[1:]:
+                                if len(row) >= 3:
+                                    em = str(row[0]).strip().lower()
+                                    pw = str(row[1]).strip()
+                                    uname = str(row[2]).strip()
+                                    sheet_users[uname] = {"pass": pw, "email": em}
+                    except Exception:
+                        pass
 
-            if username_input in sheet_users:
-                stored_hash = sheet_users[username_input]["pass"]
-                try:
-                    if bcrypt.checkpw(password_input.encode('utf-8'), stored_hash.encode('utf-8')):
-                        st.session_state["password_correct"] = True
-                        st.session_state["current_user"] = username_input
-                        st.session_state["user_email"] = sheet_users[username_input]["email"]
-                        st.rerun()
+                    if username_input in sheet_users:
+                        stored_hash = sheet_users[username_input]["pass"]
+                        try:
+                            if bcrypt.checkpw(password_input.encode('utf-8'), stored_hash.encode('utf-8')):
+                                st.session_state["password_correct"] = True
+                                st.session_state["current_user"] = username_input
+                                st.session_state["user_email"] = sheet_users[username_input]["email"]
+                                st.rerun()
+                            else:
+                                st.error("❌ Λανθασμένος Κωδικός Πρόσβασης.")
+                        except ValueError:
+                            st.error("❌ Βρέθηκε παλιός, μη κρυπτογραφημένος κωδικός. Διαγράψτε τον χρήστη από το Excel και κάντε νέα εγγραφή.")
                     else:
-                        st.error("❌ Λανθασμένος Κωδικός Πρόσβασης.")
-                except ValueError:
-                    st.error("❌ Βρέθηκε παλιός, μη κρυπτογραφημένος κωδικός. Διαγράψτε τον χρήστη από το Excel και κάντε νέα εγγραφή.")
-            else:
-                st.error("❌ Δεν βρέθηκε χρήστης με αυτό το όνομα.")
+                        st.error("❌ Δεν βρέθηκε χρήστης με αυτό το όνομα.")
 
     # SIGNUP TAB
     with tab_signup:
         st.markdown("### 📝 Δημιουργία Νέου Λογαριασμού")
-        new_email = st.text_input("Email", key="signup_email").strip().lower()
-        new_user = st.text_input("Όνομα Χρήστη (Username)", key="signup_user").strip()
-        new_pass = st.text_input("Νέος Κωδικός", type="password", key="signup_pass")
-        confirm_pass = st.text_input("Επιβεβαίωση Κωδικού", type="password", key="signup_confirm")
-        
-        st.caption("Ο κωδικός πρέπει να έχει: τουλ. 8 χαρακτήρες, 1 κεφαλαίο, 1 αριθμό, 1 σύμβολο.")
+        with st.form(key="signup_form"):
+            new_email = st.text_input("Email").strip().lower()
+            new_user = st.text_input("Όνομα Χρήστη (Username)").strip()
+            new_pass = st.text_input("Νέος Κωδικός", type="password")
+            confirm_pass = st.text_input("Επιβεβαίωση Κωδικού", type="password")
+            
+            st.caption("Ο κωδικός πρέπει να έχει: τουλ. 8 χαρακτήρες, 1 κεφαλαίο, 1 αριθμό, 1 σύμβολο.")
 
-        if st.button("Δημιουργία Λογαριασμού", key="btn_signup"):
-            if not new_email or not new_user or not new_pass:
-                st.warning("⚠️ Παρακαλώ συμπληρώστε όλα τα πεδία.")
-            elif "@" not in new_email or "." not in new_email:
-                st.error("❌ Παρακαλώ εισάγετε ένα έγκυρο Email.")
-            elif new_pass != confirm_pass:
-                st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
-            else:
-                # --- ΕΔΩ ΕΙΝΑΙ Ο ΝΕΟΣ ΑΥΣΤΗΡΟΣ ΕΛΕΓΧΟΣ ---
-                is_valid, error_message = is_strong_password(new_pass)
-                
-                if not is_valid:
-                    st.error(f"❌ {error_message}")
+            submit_signup = st.form_submit_button("Δημιουργία Λογαριασμού")
+
+            if submit_signup:
+                if not new_email or not new_user or not new_pass or not confirm_pass:
+                    st.warning("⚠️ Παρακαλώ συμπληρώστε όλα τα πεδία.")
+                elif "@" not in new_email or "." not in new_email:
+                    st.error("❌ Παρακαλώ εισάγετε ένα έγκυρο Email.")
+                elif new_pass != confirm_pass:
+                    st.error("❌ Οι κωδικοί δεν ταιριάζουν.")
                 else:
-                    try:
-                        # Κρυπτογράφηση του νέου κωδικού (Hashing)
-                        hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                        users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
-                        st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
-                    except Exception as e:
-                        st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
+                    is_valid, error_message = is_strong_password(new_pass)
+                    
+                    if not is_valid:
+                        st.error(f"❌ {error_message}")
+                    else:
+                        try:
+                            hashed_pw = bcrypt.hashpw(new_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                            users_sheet.append_row([new_email, hashed_pw, new_user], value_input_option="USER_ENTERED")
+                            st.success(f"🎉 Ο λογαριασμός για τον χρήστη '{new_user}' δημιουργήθηκε επιτυχώς! Μπορείτε τώρα να συνδεθείτε.")
+                        except Exception as e:
+                            st.error(f"⚠️ Σφάλμα κατά την εγγραφή: {e}")
 
     # RESET PASSWORD TAB
     with tab_reset:
         st.markdown("### 🔑 Ανάκτηση Κωδικού")
-        reset_email = st.text_input("Εισάγετε το Email σας", key="reset_email").strip().lower()
+        with st.form(key="reset_form"):
+            reset_email = st.text_input("Εισάγετε το Email σας").strip().lower()
+            submit_reset = st.form_submit_button("Αποστολή Προσωρινού Κωδικού")
 
-        if st.button("Αποστολή Προσωρινού Κωδικού", key="btn_reset"):
-            if not reset_email:
-                st.warning("⚠️ Παρακαλώ συμπληρώστε το email σας.")
-            else:
-                try:
-                    u_data = users_sheet.get_all_values()
-                    found_user, found_row_index = None, None
-                    if len(u_data) > 1:
-                        for i, row in enumerate(u_data[1:], start=2):
-                            if len(row) >= 3 and str(row[0]).strip().lower() == reset_email:
-                                found_user = row[2]
-                                found_row_index = i
-                                break
+            if submit_reset:
+                if not reset_email:
+                    st.warning("⚠️ Παρακαλώ συμπληρώστε το email σας.")
+                else:
+                    try:
+                        u_data = users_sheet.get_all_values()
+                        found_user, found_row_index = None, None
+                        if len(u_data) > 1:
+                            for i, row in enumerate(u_data[1:], start=2):
+                                if len(row) >= 3 and str(row[0]).strip().lower() == reset_email:
+                                    found_user = row[2]
+                                    found_row_index = i
+                                    break
 
-                    if found_row_index:
-                        temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8)) + "A1!"
-                        temp_hashed = bcrypt.hashpw(temp_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-                        
-                        users_sheet.update_cell(found_row_index, 2, temp_hashed)
+                        if found_row_index:
+                            temp_pass = ''.join(random.choices(string.ascii_letters + string.digits, k=8)) + "A1!"
+                            temp_hashed = bcrypt.hashpw(temp_pass.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                            
+                            users_sheet.update_cell(found_row_index, 2, temp_hashed)
 
-                        subject = "🔑 Νέος Κωδικός - Personal Finance Tracker"
-                        body = f"""
-                        <h3>Γεια σου {found_user},</h3>
-                        <p>Ζητήθηκε ανάκτηση κωδικού για την εφαρμογή. Ορίστηκε ένας προσωρινός κωδικός.</p>
-                        <p><b>Username:</b> {found_user}<br>
-                        <b>Προσωρινός Κωδικός:</b> <code>{temp_pass}</code></p>
-                        <hr>
-                        <p><small>Συνδεθείτε με αυτόν τον κωδικό.</small></p>
-                        """
-                        ok, msg = send_email(reset_email, subject, body)
-                        if ok:
-                            st.success("✅ Ο νέος κωδικός σας στάλθηκε στο email σας!")
+                            subject = "🔑 Νέος Κωδικός - Personal Finance Tracker"
+                            body = f"""
+                            <h3>Γεια σου {found_user},</h3>
+                            <p>Ζητήθηκε ανάκτηση κωδικού για την εφαρμογή. Ορίστηκε ένας προσωρινός κωδικός.</p>
+                            <p><b>Username:</b> {found_user}<br>
+                            <b>Προσωρινός Κωδικός:</b> <code>{temp_pass}</code></p>
+                            <hr>
+                            <p><small>Συνδεθείτε με αυτόν τον κωδικό.</small></p>
+                            """
+                            ok, msg = send_email(reset_email, subject, body)
+                            if ok:
+                                st.success("✅ Ο νέος κωδικός σας στάλθηκε στο email σας!")
+                            else:
+                                st.error(f"⚠️ {msg}")
                         else:
-                            st.error(f"⚠️ {msg}")
-                    else:
-                        st.error("❌ Δεν βρέθηκε λογαριασμός με αυτό το email.")
-                except Exception as e:
-                    st.error(f"⚠️ Σφάλμα: {e}")
+                            st.error("❌ Δεν βρέθηκε λογαριασμός με αυτό το email.")
+                    except Exception as e:
+                        st.error(f"⚠️ Σφάλμα: {e}")
 
     return False
 
