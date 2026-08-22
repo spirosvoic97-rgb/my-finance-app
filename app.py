@@ -66,7 +66,7 @@ TRANSLATIONS = {
         "balance": "💳 Διαθέσιμο Υπόλοιπο",
         "welcome": "Καλώς ήρθες",
         "settings": "⚙️ Ρυθμίσεις & Προφίλ",
-        "back_to_app": "🔙 Επιστροφή στην Εφαρμογή",
+        "back_to_app": "⬅️ Επιστροφή στην Εφαρμογή",
         "logout": "🚪 Αποσύνδεση",
         "language": "🌐 Γλώσσα / Language"
     },
@@ -98,7 +98,7 @@ TRANSLATIONS = {
         "balance": "💳 Available Balance",
         "welcome": "Welcome back",
         "settings": "⚙️ Settings & Profile",
-        "back_to_app": "🔙 Back to App",
+        "back_to_app": "⬅️ Back to Main App",
         "logout": "🚪 Logout",
         "language": "🌐 Language"
     }
@@ -340,14 +340,10 @@ if check_password(users_sheet):
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Νέο Κουμπί για Ρυθμίσεις / Προφίλ
+        # Κουμπί Ρυθμίσεων στο Sidebar (εμφανίζεται μόνο όταν είμαστε στην κύρια εφαρμογή)
         if st.session_state["view_mode"] == "main":
             if st.button(t["settings"], use_container_width=True, key="btn_open_profile"):
                 st.session_state["view_mode"] = "profile"
-                st.rerun()
-        else:
-            if st.button(t["back_to_app"], use_container_width=True, key="btn_close_profile"):
-                st.session_state["view_mode"] = "main"
                 st.rerun()
 
         st.markdown("---")
@@ -357,21 +353,27 @@ if check_password(users_sheet):
             st.session_state["view_mode"] = "main"
             st.rerun()
 
-    # --- MAIN HEADER ---
-    col_title, col_balance = st.columns([5, 3])
-    with col_title:
-        st.title("Personal Finance Tracker")
-        st.caption(f"{t['welcome']}, **{current_user}** 👋")
-    with col_balance: 
-        st.metric(label=t["balance"], value=f"{user_balance:.2f} €")
-        
-    st.markdown("---")
-
-    # Δυναμική προβολή ανάλογα με το κουμπί που πατήθηκε
+    # --- MAIN VIEW SWITCHING ---
     if st.session_state["view_mode"] == "profile":
+        # Κουμπί Επιστροφής στο πάνω μέρος της οθόνης
+        if st.button(t["back_to_app"], key="btn_top_back"):
+            st.session_state["view_mode"] = "main"
+            st.rerun()
+            
+        st.markdown("---")
         st.subheader(t["settings"])
         render_profile(users_sheet, worksheet, current_user)
     else:
+        # MAIN HEADER
+        col_title, col_balance = st.columns([5, 3])
+        with col_title:
+            st.title("Personal Finance Tracker")
+            st.caption(f"{t['welcome']}, **{current_user}** 👋")
+        with col_balance: 
+            st.metric(label=t["balance"], value=f"{user_balance:.2f} €")
+            
+        st.markdown("---")
+
         tab1, tab2, tab3 = st.tabs([t["nav_entry"], t["nav_analytics"], t["nav_ai"]])
         with tab1: render_entry(worksheet, current_user)
         with tab2: render_dashboard(worksheet, current_user)
